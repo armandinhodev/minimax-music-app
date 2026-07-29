@@ -79,6 +79,7 @@ export async function parseApiError(response: Response): Promise<{
   message: string | null;
   retryable?: boolean;
   retryAfterSeconds?: number | null;
+  details?: { upstreamStatus?: number; upstreamMessage?: string };
 } | null> {
   if (response.ok) return null;
 
@@ -88,11 +89,13 @@ export async function parseApiError(response: Response): Promise<{
     const message = typeof data.error === 'string' ? data.error : null;
     const retryable = typeof data.retryable === 'boolean' ? data.retryable : undefined;
     const retryAfterSeconds = typeof data.retryAfterSeconds === 'number' ? data.retryAfterSeconds : null;
-    return { code, message, retryable, retryAfterSeconds };
+    const details = data.details && typeof data.details === 'object' ? data.details : undefined;
+    return { code, message, retryable, retryAfterSeconds, details };
   } catch {
     return {
       code: null,
       message: `HTTP ${response.status}`,
+      details: { upstreamStatus: response.status },
     };
   }
 }

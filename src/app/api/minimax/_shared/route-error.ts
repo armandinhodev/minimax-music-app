@@ -15,7 +15,7 @@ export function createInvalidJsonResponse() {
 }
 
 export function createMiniMaxRouteErrorResponse(error: unknown, context: ServerErrorContext) {
-  const { userMessage, code, httpStatus, retryable, retryAfterSeconds } = getUserSafeMessage(error);
+  const { userMessage, code, httpStatus, retryable, retryAfterSeconds, details } = getUserSafeMessage(error);
 
   captureServerError(error, {
     ...context,
@@ -23,8 +23,16 @@ export function createMiniMaxRouteErrorResponse(error: unknown, context: ServerE
     miniMaxCode: context.miniMaxCode ?? code,
   });
 
+  // Server-side console logging for dev visibility (Next.js dev server
+  // prints these to the terminal running `pnpm dev`).
+  console.error(
+    `[${context.endpoint} ${context.method}] ${userMessage}` +
+      (details?.upstreamStatus ? ` (upstream HTTP ${details.upstreamStatus})` : '') +
+      (details?.upstreamMessage ? ` — ${details.upstreamMessage}` : '')
+  );
+
   return NextResponse.json(
-    { error: userMessage, code, retryable, retryAfterSeconds },
+    { error: userMessage, code, retryable, retryAfterSeconds, details },
     { status: httpStatus }
   );
 }

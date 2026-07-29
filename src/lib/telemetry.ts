@@ -35,6 +35,16 @@ export interface UserSafeErrorDetails {
   httpStatus: number;
   retryable?: boolean;
   retryAfterSeconds?: number;
+  /**
+   * Raw diagnostic detail about what MiniMax actually returned. Surfaced to
+   * the client so we can debug transient or persistent upstream issues
+   * without making the user guess. Safe to expose — no secrets, just
+   * status codes and message snippets that don't leak Bearer tokens.
+   */
+  details?: {
+    upstreamStatus?: number;
+    upstreamMessage?: string;
+  };
 }
 
 export interface TelemetryEvent {
@@ -81,15 +91,16 @@ function isRetryableStatus(status: number | undefined): boolean {
   return typeof status === 'number' && (status === 408 || status === 429 || (status >= 500 && status < 600));
 }
 
-function getErrorMetadata(error: unknown): { code?: number; status?: number; retryAfterSeconds?: number } {
+function getErrorMetadata(error: unknown): { code?: number; status?: number; retryAfterSeconds?: number; message?: string } {
   const maybeError = error as ErrorWithMetadata | null;
   const code = typeof maybeError?.code === 'number' ? maybeError.code : undefined;
   const status = typeof maybeError?.status === 'number' ? maybeError.status : undefined;
   const retryAfterSeconds = typeof maybeError?.retryAfterSeconds === 'number'
     ? maybeError.retryAfterSeconds
     : undefined;
+  const message = typeof maybeError?.message === 'string' ? maybeError.message : undefined;
 
-  return { code, status, retryAfterSeconds };
+  return { code, status, retryAfterSeconds, message };
 }
 
 function createConsoleAndWebhookReporter(webhookUrl?: string): TelemetryReporter {
@@ -219,12 +230,19 @@ export function getUserSafeMessage(
   error: unknown,
   miniMaxCode?: number
 ): UserSafeErrorDetails {
-  const { code, status, retryAfterSeconds } = getErrorMetadata(error);
+  const { code, status, retryAfterSeconds, message } = getErrorMetadata(error);
   const resolvedCode = miniMaxCode ?? code;
+  // Sanitize upstreamMessage before surfacing it to the client — upstream
+  // error text from MiniMax may contain Bearer tokens or API key fragments
+  // that we must not leak. Mirrors the sanitization used in telemetry.
+  const upstreamDetails = {
+    upstreamStatus: typeof status === 'number' ? status : undefined,
+    upstreamMessage: typeof message === 'string' ? sanitizeTelemetryValue(message) : undefined,
+  };
 
   // 2038 must be exact
   if (resolvedCode === 2038 || (error instanceof Error && error.message === 'Voice cloning requires account verification.')) {
-    return { userMessage: 'Voice cloning requires account verification.', code: 2038, httpStatus: 403 };
+    return { userMessage: 'Voice cloning requires account verification.', code: 2038, httpStatus: 403, details: upstreamDetails };
   }
 
   if (status === 429) {
@@ -234,6 +252,7 @@ export function getUserSafeMessage(
       httpStatus: 429,
       retryable: true,
       retryAfterSeconds,
+      details: upstreamDetails,
     };
   }
 
@@ -244,16 +263,23 @@ export function getUserSafeMessage(
       httpStatus: 504,
       retryable: true,
       retryAfterSeconds,
+      details: upstreamDetails,
     };
   }
 
   if (typeof status === 'number' && status >= 500 && status < 600) {
     return {
-      userMessage: 'MiniMax is temporarily unavailable. Please retry shortly.',
+      // Include the actual upstream status code so the user can report a
+      // concrete number when debugging. Without it, every transient blip
+      // looks like "temporarily unavailable" and we can't tell whether
+      // it's a 502 from a gateway, a 503 from MiniMax, a 504 from a
+      // timeout chain, etc.
+      userMessage: `MiniMax is temporarily unavailable (HTTP ${status}). Please retry shortly.`,
       code: resolvedCode,
       httpStatus: 503,
       retryable: true,
       retryAfterSeconds,
+      details: upstreamDetails,
     };
   }
 
@@ -262,5 +288,6 @@ export function getUserSafeMessage(
     userMessage: 'An unexpected error occurred. Please try again.',
     code: resolvedCode,
     httpStatus: 500,
+    details: upstreamDetails,
   };
 }

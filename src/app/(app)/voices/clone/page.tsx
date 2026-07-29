@@ -28,7 +28,7 @@ export default function CloneVoicePage() {
   const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<{ code: number | null; message: string | null } | null>(null);
+  const [error, setError] = useState<{ code: number | null; message: string | null; details?: { upstreamStatus?: number; upstreamMessage?: string } } | null>(null);
   const [clonedVoice, setClonedVoice] = useState<VoiceDTO | null>(null);
 
   const handleFileSelected = (_file: File) => {
@@ -64,7 +64,11 @@ export default function CloneVoicePage() {
 
       if (!response.ok) {
         const err = await parseApiError(response);
-        setError({ code: err?.code ?? response.status, message: err?.message ?? `HTTP ${response.status}` });
+        setError({
+          code: err?.code ?? response.status,
+          message: err?.message ?? `HTTP ${response.status}`,
+          details: err?.details,
+        });
         return;
       }
 
@@ -114,7 +118,7 @@ export default function CloneVoicePage() {
             </p>
           </Box>
 
-          {error && <ErrorDisplay code={error.code} message={error.message} />}
+          {error && <ErrorDisplay code={error.code} message={error.message} details={error.details} />}
 
           <Box display="flex" gap={2}>
             <Button onClick={handleClone} disabled={isLoading || !uploadedFileId}>

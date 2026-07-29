@@ -46,6 +46,7 @@ describe('POST /api/minimax/voices/clone', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Voice cloning requires account verification.',
       code: 2038,
+      details: { upstreamStatus: undefined, upstreamMessage: 'Voice cloning requires account verification.' },
     });
   }, 10_000);
 
@@ -74,7 +75,9 @@ describe('POST /api/minimax/voices/clone', () => {
       code: 42901,
       retryable: true,
       retryAfterSeconds: 9,
+      details: { upstreamStatus: 429, upstreamMessage: 'Bearer [REDACTED] upstream failure' },
     });
     expect(JSON.stringify(body)).not.toContain('secret-key');
+    expect(JSON.stringify(body)).not.toContain('Bearer eyJ');
   });
 });

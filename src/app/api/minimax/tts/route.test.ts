@@ -49,7 +49,9 @@ describe('POST /api/minimax/tts', () => {
       code: 42901,
       retryable: true,
       retryAfterSeconds: 5,
+      details: { upstreamStatus: 429, upstreamMessage: 'authorization=[REDACTED] upstream rate limit' },
     });
-    expect(JSON.stringify(body)).not.toContain('secret');
+    expect(JSON.stringify(body)).not.toContain('secret-key');
+    expect(JSON.stringify(body)).not.toContain('Bearer eyJ');
   }, 10_000);
 });

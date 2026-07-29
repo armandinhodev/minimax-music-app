@@ -40,16 +40,19 @@ describe('getUserSafeMessage', () => {
       userMessage: 'An unexpected error occurred. Please try again.',
       code: undefined,
       httpStatus: 500,
+      details: { upstreamStatus: undefined, upstreamMessage: undefined },
     });
     expect(getUserSafeMessage(null)).toEqual({
       userMessage: 'An unexpected error occurred. Please try again.',
       code: undefined,
       httpStatus: 500,
+      details: { upstreamStatus: undefined, upstreamMessage: undefined },
     });
     expect(getUserSafeMessage(undefined)).toEqual({
       userMessage: 'An unexpected error occurred. Please try again.',
       code: undefined,
       httpStatus: 500,
+      details: { upstreamStatus: undefined, upstreamMessage: undefined },
     });
   });
 
@@ -66,6 +69,7 @@ describe('getUserSafeMessage', () => {
       httpStatus: 429,
       retryable: true,
       retryAfterSeconds: 7,
+      details: { upstreamStatus: 429, upstreamMessage: 'rate limited' },
     });
   });
 
@@ -76,11 +80,12 @@ describe('getUserSafeMessage', () => {
     });
 
     expect(getUserSafeMessage(error)).toEqual({
-      userMessage: 'MiniMax is temporarily unavailable. Please retry shortly.',
+      userMessage: 'MiniMax is temporarily unavailable (HTTP 502). Please retry shortly.',
       code: 50042,
       httpStatus: 503,
       retryable: true,
       retryAfterSeconds: undefined,
+      details: { upstreamStatus: 502, upstreamMessage: 'upstream failure' },
     });
   });
 });

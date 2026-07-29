@@ -44,11 +44,13 @@ describe('POST /api/minimax/tts/stream', () => {
     const body = await response.json();
 
     expect(body).toEqual({
-      error: 'MiniMax is temporarily unavailable. Please retry shortly.',
+      error: 'MiniMax is temporarily unavailable (HTTP 502). Please retry shortly.',
       code: 50042,
       retryable: true,
+      details: { upstreamStatus: 502, upstreamMessage: 'Bearer [REDACTED] upstream unavailable' },
     });
     expect(body).not.toHaveProperty('retryAfterSeconds');
     expect(JSON.stringify(body)).not.toContain('secret-token');
+    expect(JSON.stringify(body)).not.toContain('Bearer eyJ');
   }, 10_000);
 });

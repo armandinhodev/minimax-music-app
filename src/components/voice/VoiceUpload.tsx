@@ -47,7 +47,11 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    upstreamStatus?: number;
+    upstreamMessage?: string;
+  } | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [uploadedFileId, setUploadedFileId] = useState<string | null>(null);
@@ -158,7 +162,7 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
 
       const validation = await validateFile(f);
       if (!validation.valid) {
-        setError(validation.error ?? 'Invalid file.');
+        setError({ message: validation.error ?? 'Invalid file.' });
         setFile(null);
         return;
       }
@@ -224,7 +228,12 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
         if (!response.ok) {
           const err = await parseApiError(response);
           const retryHint = getRetryHint(err?.retryable, err?.retryAfterSeconds);
-          setError([err?.message ?? `Upload failed (HTTP ${response.status})`, retryHint].filter(Boolean).join(' '));
+          const messageParts = [err?.message ?? `Upload failed (HTTP ${response.status})`, retryHint].filter(Boolean);
+          setError({
+            message: messageParts.join(' '),
+            upstreamStatus: err?.details?.upstreamStatus,
+            upstreamMessage: err?.details?.upstreamMessage,
+          });
           return null;
         }
 
@@ -237,7 +246,7 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
          }
          return fileId;
       } catch {
-        setError('Upload failed. Check your connection.');
+        setError({ message: 'Upload failed. Check your connection.' });
         return null;
       } finally {
         setIsUploading(false);
@@ -330,7 +339,23 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
       {isUploading && <Progress value={uploadProgress} w="full" />}
 
       {/* Error */}
-      {error && <p style={{ fontSize: '0.875rem', color: '#dc2626' }}>{error}</p>}
+      {error && (
+        <Box>
+          <p style={{ fontSize: '0.875rem', color: '#dc2626' }}>{error.message}</p>
+          {(error.upstreamStatus !== undefined || error.upstreamMessage) && (
+            <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem', opacity: 0.85 }}>
+              {error.upstreamStatus !== undefined && (
+                <>Upstream HTTP {error.upstreamStatus}. </>
+              )}
+              {error.upstreamMessage && (
+                <code style={{ background: 'rgba(0,0,0,0.05)', padding: '0 0.25rem', borderRadius: '0.25rem' }}>
+                  {error.upstreamMessage}
+                </code>
+              )}
+            </p>
+          )}
+        </Box>
+      )}
 
       {/* Actions */}
       {file && !uploadedFileId && (
