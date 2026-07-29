@@ -86,7 +86,8 @@ export function VoiceSelector({
         disabled={disabled || isLoading}
         options={voiceOptions}
         placeholder={isLoading ? 'Loading voices...' : 'Select a voice'}
-        groupBy={(o) => o.flag?.displayName ?? 'Unknown'}
+        groupBy={(o) => o.flag?.displayName ?? 'My Voices'}
+        groupOrder={(key) => (key === 'My Voices' ? -1 : 0)}
         searchable
       />
       {error && <p style={{ fontSize: '0.75rem', color: '#dc2626' }}>{error}</p>}

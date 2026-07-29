@@ -44,6 +44,8 @@ export interface SelectProps {
   className?: string;
   /** When provided, options are grouped under ItemGroup headers by the returned key. Undefined returns render ungrouped. */
   groupBy?: (option: SelectOption) => string | undefined;
+  /** Optional sort priority for groups. Lower numbers render first; groups with the same priority fall back to count desc then alphabetical. Useful for pinning a special group (e.g. "My Voices") above the rest regardless of item count. */
+  groupOrder?: (groupKey: string) => number;
   /** When true, renders an integrated search input inside the dropdown (combobox pattern). */
   searchable?: boolean;
 }
@@ -99,6 +101,7 @@ interface OptionGroup {
 function groupOptions(
   options: SelectOption[],
   groupBy: SelectProps['groupBy'],
+  groupOrder?: SelectProps['groupOrder'],
 ): OptionGroup[] {
   if (!groupBy) return [{ key: undefined, options }];
 
@@ -112,6 +115,11 @@ function groupOptions(
 
   return Array.from(groups.entries())
     .sort(([aKey, aItems], [bKey, bItems]) => {
+      if (groupOrder) {
+        const ao = groupOrder(aKey);
+        const bo = groupOrder(bKey);
+        if (ao !== bo) return ao - bo;
+      }
       if (bItems.length !== aItems.length) return bItems.length - aItems.length;
       return aKey.localeCompare(bKey);
     })
@@ -152,14 +160,15 @@ function BaseSelect({
   id,
   className,
   groupBy,
+  groupOrder,
 }: SelectProps) {
   const collection = useMemo(
     () => createListCollection({ items: options }),
     [options],
   );
   const groupedOptions = useMemo(
-    () => groupOptions(options, groupBy),
-    [options, groupBy],
+    () => groupOptions(options, groupBy, groupOrder).filter((g) => g.options.length > 0),
+    [options, groupBy, groupOrder],
   );
   const selectedOption = value ? options.find((option) => option.value === value) : undefined;
 
@@ -241,6 +250,7 @@ function SearchableSelect({
   id,
   className,
   groupBy,
+  groupOrder,
 }: SelectProps) {
   const { contains } = useFilter({ sensitivity: 'base' });
   const filterOption = useMemo(
@@ -271,8 +281,9 @@ function SearchableSelect({
   }, [options, selectedLabel, setItems]);
 
   const groupedOptions = useMemo(
-    () => groupOptions(collection.items, groupBy),
-    [collection.items, groupBy],
+    () =>
+      groupOptions(collection.items, groupBy, groupOrder).filter((g) => g.options.length > 0),
+    [collection.items, groupBy, groupOrder],
   );
 
   return (

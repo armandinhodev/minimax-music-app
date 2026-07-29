@@ -536,6 +536,61 @@ describe('Select', () => {
     expect(container!.querySelectorAll('[data-combobox-item]')).toHaveLength(2);
   });
 
+  it('pins a high-priority group to the top via groupOrder, ignoring item count', () => {
+    const options: SelectOption[] = [
+      // Two English voices
+      { value: 'English_A', label: 'English A', flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' } },
+      { value: 'English_B', label: 'English B', flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' } },
+      // Three Korean voices (more than English, so without groupOrder Korean would render first)
+      { value: 'Korean_A', label: 'Korean A', flag: { countryCode: 'kr', displayName: 'Korean', fallbackEmoji: '🌐' } },
+      { value: 'Korean_B', label: 'Korean B', flag: { countryCode: 'kr', displayName: 'Korean', fallbackEmoji: '🌐' } },
+      { value: 'Korean_C', label: 'Korean C', flag: { countryCode: 'kr', displayName: 'Korean', fallbackEmoji: '🌐' } },
+      // One user voice (cloned) — no flag, would land in fallback group
+      { value: 'my_clone_1', label: 'My Clone' },
+    ];
+
+    act(() => {
+      root!.render(
+        <Select
+          options={options}
+          groupBy={(option) => option.flag?.displayName ?? 'My Voices'}
+          groupOrder={(key) => (key === 'My Voices' ? -1 : 0)}
+        />,
+      );
+    });
+
+    const labels = Array.from(container!.querySelectorAll('[data-item-group-label]')).map(
+      (el) => el.textContent,
+    );
+    expect(labels[0]).toBe('My Voices');
+    // English and Korean follow in count-desc order (Korean 3 > English 2)
+    expect(labels).toEqual(['My Voices', 'Korean', 'English']);
+  });
+
+  it('filters out groups that have no items', () => {
+    // No user voices — only system voices with flags. groupBy falls back to 'My Voices' but the group ends up empty.
+    const options: SelectOption[] = [
+      { value: 'English_A', label: 'English A', flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' } },
+      { value: 'Korean_A', label: 'Korean A', flag: { countryCode: 'kr', displayName: 'Korean', fallbackEmoji: '🌐' } },
+    ];
+
+    act(() => {
+      root!.render(
+        <Select
+          options={options}
+          groupBy={(option) => option.flag?.displayName ?? 'My Voices'}
+        />,
+      );
+    });
+
+    const labels = Array.from(container!.querySelectorAll('[data-item-group-label]')).map(
+      (el) => el.textContent,
+    );
+    expect(labels).not.toContain('My Voices');
+    // Both groups have count 1, so the tiebreak is alphabetical asc → English first.
+    expect(labels).toEqual(['English', 'Korean']);
+  });
+
   it('updates searchable items when options change', () => {
     act(() => {
       root!.render(
