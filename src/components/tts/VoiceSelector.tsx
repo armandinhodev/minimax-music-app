@@ -11,6 +11,7 @@ import { Select, type SelectOption } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { authFetch, parseApiError } from '@/lib/auth-client';
 import { getLanguageInfo } from '@/lib/language-flags';
+import { getHistoryItems } from '@/lib/history';
 import type { VoiceDTO } from '@/application/dto/VoiceDTO';
 
 interface VoiceSelectorProps {
@@ -60,13 +61,51 @@ export function VoiceSelector({
     // "The generated voices (voice_id) can then be used in the T2A API
     // and the T2A Async API for speech generation." Designed voices are
     // NOT excluded here.
+    //
+    // Workaround for MiniMax /v1/get_voice not listing designed voices:
+    // the API returns voice_generation: [] even after designing (verified
+    // empirically), so we supplement the API list with designed voices
+    // from localStorage history. These have a 168-hour TTL per MiniMax
+    // docs; we filter by ttlExpiry so expired entries don't surface.
+    // API voices take precedence on duplicate voiceId.
+    const fromHistory = (() => {
+      if (typeof window === 'undefined') return [];
+      const items = getHistoryItems();
+      const now = Date.now();
+      return items
+        .filter(
+          (item) =>
+            item.type === 'design' &&
+            typeof item.voiceId === 'string' &&
+            item.voiceId.length > 0 &&
+            typeof item.ttlExpiry === 'number' &&
+            item.ttlExpiry > now,
+        )
+        .map<VoiceDTO>((item) => ({
+          voiceId: item.voiceId as string,
+          // History doesn't store the voice name; fall back to the voiceId
+          // as the human-readable label. Library already shows the full
+          // voiceId next to history entries, so users recognize them.
+          name: item.voiceId as string,
+          type: 'design',
+          ttlExpiry: item.ttlExpiry,
+          createdAt: item.createdAt,
+        }));
+    })();
+
+    const apiVoiceIds = new Set(voices.map((v) => v.voiceId));
+    const designedFromHistory = fromHistory.filter(
+      (v) => !apiVoiceIds.has(v.voiceId),
+    );
+    const merged = [...voices, ...designedFromHistory];
+
     if (filterType === 'system') {
-      return voices.filter((voice) => voice.type === 'system');
+      return merged.filter((voice) => voice.type === 'system');
     }
     if (filterType === 'user') {
-      return voices.filter((voice) => voice.type !== 'system');
+      return merged.filter((voice) => voice.type !== 'system');
     }
-    return voices;
+    return merged;
   }, [voices, filterType]);
 
   const voiceOptions = useMemo<SelectOption[]>(
