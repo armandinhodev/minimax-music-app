@@ -1,0 +1,120 @@
+'use client';
+
+/**
+ * VoiceSelector — voice dropdown with search.
+ * Fetches voices from GET /api/minimax/voices and renders a searchable select.
+ */
+
+import { useEffect, useState, useMemo } from 'react';
+import { Box } from '@chakra-ui/react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { authFetch, parseApiError } from '@/lib/auth-client';
+import type { VoiceDTO } from '@/application/dto/VoiceDTO';
+
+interface VoiceSelectorProps {
+  value: string;
+  onChange: (voiceId: string) => void;
+  label?: string;
+  disabled?: boolean;
+  filterType?: 'all' | 'system' | 'user';
+}
+
+export function VoiceSelector({
+  value,
+  onChange,
+  label = 'Voice',
+  disabled = false,
+  filterType = 'all',
+}: VoiceSelectorProps) {
+  const [voices, setVoices] = useState<VoiceDTO[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadVoices = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await authFetch('/api/minimax/voices');
+        if (!response.ok) {
+          const err = await parseApiError(response);
+          setError(err?.message ?? `HTTP ${response.status}`);
+          return;
+        }
+        const data = await response.json();
+        setVoices(data.voices ?? []);
+      } catch {
+        setError('Failed to load voices.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadVoices();
+  }, []);
+
+  const filteredVoices = useMemo(() => {
+    let result = voices;
+    if (filterType === 'system') {
+      result = result.filter((v) => v.type === 'system');
+    } else if (filterType === 'user') {
+      result = result.filter((v) => v.type !== 'system');
+    }
+    if (!search.trim()) return result;
+    const q = search.toLowerCase();
+    return result.filter(
+      (v) =>
+        v.name.toLowerCase().includes(q) ||
+        v.voiceId.toLowerCase().includes(q)
+    );
+  }, [voices, filterType, search]);
+
+  const selectedVoice = voices.find((v) => v.voiceId === value);
+
+  return (
+    <Box display="grid" gap={2}>
+      <Label htmlFor="voice-selector">{label}</Label>
+      <Box maxW="20rem" mb={2}>
+        <Input
+          id="voice-search"
+          placeholder="Search voices..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </Box>
+      <Select
+        value={value}
+        onValueChange={(v) => v && onChange(v)}
+        disabled={disabled || isLoading}
+      >
+        <SelectTrigger id="voice-selector">
+          <SelectValue
+            placeholder={isLoading ? 'Loading voices...' : 'Select a voice'}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {filteredVoices.length === 0 && (
+            <Box p={2}>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                {search ? 'No matching voices.' : 'No voices available.'}
+              </p>
+            </Box>
+          )}
+          {filteredVoices.map((voice) => (
+            <SelectItem key={voice.voiceId} value={voice.voiceId}>
+              {voice.name} ({voice.voiceId})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {error && <p style={{ fontSize: '0.75rem', color: '#dc2626' }}>{error}</p>}
+      {selectedVoice && (
+        <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+          Voice ID: <code style={{ backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{selectedVoice.voiceId}</code>
+        </p>
+      )}
+    </Box>
+  );
+}
