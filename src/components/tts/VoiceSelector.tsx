@@ -55,13 +55,19 @@ export function VoiceSelector({
   }, []);
 
   const filteredVoices = useMemo(() => {
+    // Designed voices are intentionally excluded from the /tts voice
+    // selector. They remain visible in the gallery's "My Voices" tab
+    // and in the Library history, but they are not offered as a target
+    // for arbitrary TTS input. Cloned voices and system voices still
+    // appear here.
+    const withoutDesigned = voices.filter((voice) => voice.type !== 'design');
     if (filterType === 'system') {
-      return voices.filter((voice) => voice.type === 'system');
+      return withoutDesigned.filter((voice) => voice.type === 'system');
     }
     if (filterType === 'user') {
-      return voices.filter((voice) => voice.type !== 'system');
+      return withoutDesigned.filter((voice) => voice.type !== 'system');
     }
-    return voices;
+    return withoutDesigned;
   }, [voices, filterType]);
 
   const voiceOptions = useMemo<SelectOption[]>(
