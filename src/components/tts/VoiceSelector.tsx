@@ -55,19 +55,18 @@ export function VoiceSelector({
   }, []);
 
   const filteredVoices = useMemo(() => {
-    // Designed voices are intentionally excluded from the /tts voice
-    // selector. They remain visible in the gallery's "My Voices" tab
-    // and in the Library history, but they are not offered as a target
-    // for arbitrary TTS input. Cloned voices and system voices still
-    // appear here.
-    const withoutDesigned = voices.filter((voice) => voice.type !== 'design');
+    // All user voices (clone + design) and system voices are selectable
+    // targets for TTS. Per MiniMax API docs (voice-design/api-overview):
+    // "The generated voices (voice_id) can then be used in the T2A API
+    // and the T2A Async API for speech generation." Designed voices are
+    // NOT excluded here.
     if (filterType === 'system') {
-      return withoutDesigned.filter((voice) => voice.type === 'system');
+      return voices.filter((voice) => voice.type === 'system');
     }
     if (filterType === 'user') {
-      return withoutDesigned.filter((voice) => voice.type !== 'system');
+      return voices.filter((voice) => voice.type !== 'system');
     }
-    return withoutDesigned;
+    return voices;
   }, [voices, filterType]);
 
   const voiceOptions = useMemo<SelectOption[]>(
