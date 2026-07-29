@@ -6,13 +6,14 @@
  * and supports use-in-T2A and delete actions.
  */
 
+import { useState } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TTLCounter } from '@/components/shared/TTLCounter';
 import type { VoiceDTO } from '@/application/dto/VoiceDTO';
-import { getLanguageInfo } from '@/lib/language-flags';
+import { FLAG_SIZE_CARD, getFlagUrl, getLanguageInfo } from '@/lib/language-flags';
 
 interface VoiceCardProps {
   voice: VoiceDTO;
@@ -32,7 +33,9 @@ function VoiceTypeBadge({ type }: { type: VoiceDTO['type'] }) {
 
 export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceCardProps) {
   const createdDate = new Date(voice.createdAt).toLocaleDateString();
-  const languageInfo = voice.language ? getLanguageInfo(voice.language) : null;
+  const info = voice.language ? getLanguageInfo(voice.language) : null;
+  const flagUrl = info?.countryCode ? getFlagUrl(info.countryCode, FLAG_SIZE_CARD) : null;
+  const [imgFailed, setImgFailed] = useState(false);
 
   return (
     <Card>
@@ -40,8 +43,23 @@ export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceC
         <Box display="flex" alignItems="flex-start" justifyContent="space-between">
           <Box minW={0} flex={1}>
             <Box display="flex" alignItems="center" gap={1} minW={0}>
-              {voice.type === 'system' && languageInfo && (
-                <span style={{ fontSize: '1rem' }} aria-label={languageInfo.displayName}>{languageInfo.flag}</span>
+              {voice.type === 'system' && info && (
+                flagUrl && !imgFailed ? (
+                  <img
+                    src={flagUrl}
+                    width={20}
+                    height={15}
+                    alt={info.displayName}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setImgFailed(true)}
+                    style={{ display: 'block' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '1rem' }} aria-label={info.displayName}>
+                    {info.fallbackEmoji}
+                  </span>
+                )
               )}
               <CardTitle style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{voice.name}</CardTitle>
             </Box>
