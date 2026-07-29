@@ -576,6 +576,7 @@ export class MiniMaxSpeechClient {
     return allVoices.map((v) => ({
       voiceId: v.voice_id ?? v.voice_id_str ?? '',
       name: v.name ?? v.voice_id ?? '',
+      language: v.voice_id?.includes('_') ? v.voice_id.split('_')[0] : undefined,
       type: v.source,
       ttlExpiry: undefined,
       createdAt: v.created_at ?? Date.now(),

@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { TTLCounter } from '@/components/shared/TTLCounter';
 import type { VoiceDTO } from '@/application/dto/VoiceDTO';
+import { getLanguageInfo } from '@/lib/language-flags';
 
 interface VoiceCardProps {
   voice: VoiceDTO;
@@ -31,13 +32,19 @@ function VoiceTypeBadge({ type }: { type: VoiceDTO['type'] }) {
 
 export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceCardProps) {
   const createdDate = new Date(voice.createdAt).toLocaleDateString();
+  const languageInfo = voice.language ? getLanguageInfo(voice.language) : null;
 
   return (
     <Card>
       <CardHeader>
         <Box display="flex" alignItems="flex-start" justifyContent="space-between">
           <Box minW={0} flex={1}>
-            <CardTitle style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{voice.name}</CardTitle>
+            <Box display="flex" alignItems="center" gap={1} minW={0}>
+              {voice.type === 'system' && languageInfo && (
+                <span style={{ fontSize: '1rem' }} aria-label={languageInfo.displayName}>{languageInfo.flag}</span>
+              )}
+              <CardTitle style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{voice.name}</CardTitle>
+            </Box>
             <CardDescription style={{ fontSize: '0.75rem', marginTop: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={voice.voiceId}>
               {voice.voiceId}
             </CardDescription>

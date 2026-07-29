@@ -19,6 +19,7 @@ export class GetVoicesUseCase {
     return voices.map((v) => ({
       voiceId: v.voiceId,
       name: v.name,
+      language: v.language,
       type: v.type,
       ttlExpiry: v.ttlExpiry,
       createdAt: v.createdAt,

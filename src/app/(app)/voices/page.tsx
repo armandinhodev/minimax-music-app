@@ -6,7 +6,7 @@
  * VoiceCard grid with search/filter.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,8 @@ import { ErrorDisplay } from '@/components/shared/ErrorDisplay';
 import type { VoiceDTO } from '@/application/dto/VoiceDTO';
 import Link from 'next/link';
 import { VoiceCard } from '@/components/voice/VoiceCard';
+import { VoiceGroupSection } from '@/components/voice/VoiceGroupSection';
+import { getLanguageInfo } from '@/lib/language-flags';
 
 export default function VoicesPage() {
   const [systemVoices, setSystemVoices] = useState<VoiceDTO[]>([]);
@@ -87,9 +89,27 @@ export default function VoicesPage() {
     return voices.filter(
       (v) =>
         v.name.toLowerCase().includes(q) ||
-        v.voiceId.toLowerCase().includes(q)
-    );
+        v.voiceId.toLowerCase().includes(q) ||
+        (v.language ?? '').toLowerCase().includes(q)    );
   };
+
+  const groupedSystemVoices = useMemo(() => {
+    const groups = new Map<string, VoiceDTO[]>();
+    for (const voice of systemVoices) {
+      const language = voice.language ?? 'Unknown';
+      groups.set(language, [...(groups.get(language) ?? []), voice]);
+    }
+    return [...groups.entries()]
+      .map(([language, voices]) => ({ language, voices, ...getLanguageInfo(language) }))
+      .sort((a, b) => b.voices.length - a.voices.length || a.displayName.localeCompare(b.displayName));
+  }, [systemVoices]);
+
+  const filteredSystemGroups = groupedSystemVoices.map((group) => ({
+    ...group,
+    voices: filterVoices(group.voices),
+  }));
+
+  const hasFilteredSystemVoices = filteredSystemGroups.some((group) => group.voices.length > 0);
 
   return (
     <Box display="grid" gap={6}>
@@ -124,12 +144,12 @@ export default function VoicesPage() {
                 />
               </Box>
             </Box>
-            <Box display="grid" gap={4} gridTemplateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }}>
-              {filterVoices(systemVoices).map((voice) => (
-                <VoiceCard key={voice.voiceId} voice={voice} />
+            <Box display="grid" gap={8}>
+              {filteredSystemGroups.filter((group) => group.voices.length > 0).map((group) => (
+                <VoiceGroupSection key={group.language} language={group.language} voices={group.voices} />
               ))}
-              {filterVoices(systemVoices).length === 0 && (
-                <p style={{ color: '#6b7280', gridColumn: '1 / -1', fontSize: '0.875rem' }}>
+              {!hasFilteredSystemVoices && (
+                <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
                   {filter ? 'No matching system voices.' : 'No system voices available.'}
                 </p>
               )}

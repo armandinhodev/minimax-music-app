@@ -5,6 +5,7 @@
 export interface Voice {
   readonly voiceId: string;
   readonly name: string;
+  readonly language?: string;
   readonly type: VoiceType;
   readonly ttlExpiry?: number; // Unix timestamp ms; present only for cloned/designed voices
   readonly createdAt: number; // Unix timestamp ms

@@ -44,6 +44,7 @@ export type DesignVoiceRequest = z.infer<typeof DesignVoiceSchema>;
 export interface VoiceDTO {
   voiceId: string;
   name: string;
+  language?: string;
   type: 'system' | 'clone' | 'design';
   ttlExpiry?: number; // Unix timestamp ms
   createdAt: number;

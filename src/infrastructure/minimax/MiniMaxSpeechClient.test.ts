@@ -22,6 +22,26 @@ describe('MiniMaxSpeechClient', () => {
     vi.restoreAllMocks();
   });
 
+  it('extracts language prefixes from system voice IDs, including multi-word and edge-case prefixes', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      system_voice: {
+        english: { voice_id: 'English_Friendly_Guy', name: 'Friendly Guy' },
+        mandarin: { voice_id: 'Chinese (Mandarin)_News_Anchor', name: 'News Anchor' },
+        robot: { voice_id: 'Robot_Armor', name: 'Armor' },
+        arrogant: { voice_id: 'Arrogant_Miss', name: 'Miss' },
+        plain: { voice_id: 'Standalone', name: 'Standalone' },
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+
+    const voices = await new MiniMaxSpeechClient().getVoices();
+    expect(voices.map(({ voiceId, language }) => ({ voiceId, language }))).toEqual([
+      { voiceId: 'English_Friendly_Guy', language: 'English' },
+      { voiceId: 'Chinese (Mandarin)_News_Anchor', language: 'Chinese (Mandarin)' },
+      { voiceId: 'Robot_Armor', language: 'Robot' },
+      { voiceId: 'Arrogant_Miss', language: 'Arrogant' },
+      { voiceId: 'Standalone', language: undefined },
+    ]);
+  });
   it('retries abort timeouts before succeeding', async () => {
     global.fetch = vi.fn()
       .mockRejectedValueOnce(Object.assign(new Error('timeout'), { name: 'AbortError' }))
