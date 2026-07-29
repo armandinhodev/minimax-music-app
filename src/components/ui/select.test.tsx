@@ -6,15 +6,79 @@ import type { SelectOption } from './select';
 
 vi.mock('@chakra-ui/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@chakra-ui/react')>();
+  const ReactModule = await import('react');
   let capturedOnValueChange: ((details: { value: string[] }) => void) | undefined;
-  const passthrough = ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => (
-    <div {...props}>{children}</div>
+  const passthrough = ({ children }: { children?: ReactNode } & Record<string, unknown>) => (
+    <div>{children}</div>
   );
+  const contains = (haystack: string, needle: string) =>
+    haystack.toLocaleLowerCase().includes(needle.toLocaleLowerCase());
+
+  interface MockCollection {
+    items: SelectOption[];
+    getItemValue: (item: SelectOption) => string;
+    toString: () => string;
+  }
+
+  interface MockComboboxContextValue {
+    collection: MockCollection;
+    inputValue?: string;
+    onInputValueChange?: (details: { inputValue: string }) => void;
+    onOpenChange?: (details: { open: boolean; value: string[] }) => void;
+    onValueChange?: (details: { value: string[] }) => void;
+    value?: string[];
+  }
+
+  const MockComboboxContext = ReactModule.createContext<MockComboboxContextValue | null>(null);
+
   return {
     ...actual,
     Box: passthrough,
     Portal: passthrough,
     createListCollection: <T,>(config: { items: T[] }) => ({ items: config.items }),
+    useFilter: () => ({ contains }),
+    useListCollection: ({
+      initialItems,
+      filter,
+      itemToString,
+      itemToValue,
+    }: {
+      initialItems: SelectOption[];
+      filter?: (itemText: string, filterText: string, item: SelectOption) => boolean;
+      itemToString: (item: SelectOption) => string;
+      itemToValue: (item: SelectOption) => string;
+    }) => {
+      const [items, setItems] = ReactModule.useState<SelectOption[]>([...initialItems]);
+      const [filterText, setFilterText] = ReactModule.useState('');
+      const filteredItems = ReactModule.useMemo(
+        () =>
+          filterText && filter
+            ? items.filter((item) => filter(itemToString(item), filterText, item))
+            : items,
+        [filter, filterText, itemToString, items],
+      );
+      const set = ReactModule.useCallback((nextItems: SelectOption[]) => {
+        setItems(nextItems);
+        setFilterText('');
+      }, []);
+      const reset = ReactModule.useCallback(() => {
+        setItems([...initialItems]);
+        setFilterText('');
+      }, [initialItems]);
+      const applyFilter = ReactModule.useCallback((text: string) => {
+        setFilterText(text);
+      }, []);
+      const collection = ReactModule.useMemo<MockCollection>(
+        () => ({
+          items: filteredItems,
+          getItemValue: itemToValue,
+          toString: () => 'mocked-collection',
+        }),
+        [filteredItems, itemToValue],
+      );
+
+      return { collection, filter: applyFilter, reset, set };
+    },
     Select: {
       Root: ({
         children,
@@ -77,8 +141,103 @@ vi.mock('@chakra-ui/react', async (importOriginal) => {
       ItemText: ({ children }: { children?: ReactNode }) => <span data-item-text>{children}</span>,
       ItemIndicator: () => <span data-item-indicator />,
     },
+    Combobox: {
+      Root: ({
+        children,
+        collection,
+        inputValue,
+        onInputValueChange,
+        onOpenChange,
+        onValueChange,
+        value,
+      }: MockComboboxContextValue & { children?: ReactNode }) => (
+        <MockComboboxContext.Provider
+          value={{
+            collection,
+            inputValue,
+            onInputValueChange,
+            onOpenChange,
+            onValueChange,
+            value,
+          }}
+        >
+          <div
+            data-combobox-root
+            data-selected={value && value.length > 0 ? value[0] : ''}
+          >
+            {children}
+          </div>
+        </MockComboboxContext.Provider>
+      ),
+      Control: passthrough,
+      Input: ({ placeholder }: { placeholder?: string }) => {
+        const context = ReactModule.useContext(MockComboboxContext);
+        return (
+          <input
+            data-combobox-input
+            placeholder={placeholder ?? ''}
+            value={context?.inputValue ?? ''}
+            onChange={(event) =>
+              context?.onInputValueChange?.({ inputValue: event.target.value })
+            }
+          />
+        );
+      },
+      IndicatorGroup: passthrough,
+      Trigger: () => {
+        const context = ReactModule.useContext(MockComboboxContext);
+        return (
+          <button
+            type="button"
+            data-combobox-trigger
+            onClick={() =>
+              context?.onOpenChange?.({ open: false, value: context.value ?? [] })
+            }
+          />
+        );
+      },
+      Positioner: passthrough,
+      Content: ({ children }: { children?: ReactNode }) => <div data-combobox-content>{children}</div>,
+      ItemGroup: ({ children, id }: { children?: ReactNode; id?: string }) => (
+        <div data-combobox-item-group data-group-id={id}>
+          {children}
+        </div>
+      ),
+      ItemGroupLabel: ({ children }: { children?: ReactNode }) => (
+        <div data-combobox-item-group-label>{children}</div>
+      ),
+      Item: ({ children, item }: { children?: ReactNode; item: SelectOption }) => {
+        const context = ReactModule.useContext(MockComboboxContext);
+        return (
+          <div
+            data-combobox-item={item.value}
+            onClick={() => context?.onValueChange?.({ value: [item.value] })}
+          >
+            {children}
+          </div>
+        );
+      },
+      ItemText: ({ children }: { children?: ReactNode }) => (
+        <span data-combobox-item-text>{children}</span>
+      ),
+      ItemIndicator: () => <span data-combobox-item-indicator />,
+      Empty: ({ children }: { children?: ReactNode }) => {
+        const context = ReactModule.useContext(MockComboboxContext);
+        return context?.collection.items.length === 0 ? (
+          <div data-combobox-empty>{children}</div>
+        ) : null;
+      },
+    },
   };
 });
+
+function enterText(input: HTMLInputElement, value: string) {
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  act(() => {
+    setValue?.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
 
 describe('Select', () => {
   let container: HTMLDivElement | null = null;
@@ -237,5 +396,162 @@ describe('Select', () => {
 
     const valueEl = container!.querySelector('[data-select-value]');
     expect(valueEl?.textContent).toBe('Pick one...');
+  });
+
+  it('renders an integrated search input when searchable is true', () => {
+    act(() => {
+      root!.render(
+        <Select
+          searchable
+          placeholder="Search voices..."
+          options={[{ value: 'voice-a', label: 'Voice A' }]}
+        />,
+      );
+    });
+
+    const input = container!.querySelector('[data-combobox-input]');
+    expect(input).not.toBeNull();
+    expect(input?.getAttribute('placeholder')).toBe('Search voices...');
+    expect(container!.querySelector('[data-select-root]')).toBeNull();
+  });
+
+  it('renders flag images inside searchable items', () => {
+    act(() => {
+      root!.render(
+        <Select
+          searchable
+          options={[
+            {
+              value: 'English_A',
+              label: 'English A',
+              flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' },
+            },
+          ]}
+        />,
+      );
+    });
+
+    const item = container!.querySelector('[data-combobox-item="English_A"]');
+    const img = item?.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe('https://flagcdn.com/20x15/gb.png');
+  });
+
+  it('filters searchable items by language display name', () => {
+    const options: SelectOption[] = [
+      {
+        value: 'voice-a',
+        label: 'Voice A',
+        flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' },
+      },
+      {
+        value: 'voice-b',
+        label: 'Voice B',
+        flag: { countryCode: 'kr', displayName: 'Korean', fallbackEmoji: '🌐' },
+      },
+    ];
+
+    act(() => {
+      root!.render(
+        <Select
+          searchable
+          options={options}
+          groupBy={(option) => option.flag?.displayName}
+        />,
+      );
+    });
+
+    const input = container!.querySelector('[data-combobox-input]') as HTMLInputElement;
+    enterText(input, 'korean');
+
+    expect(container!.querySelectorAll('[data-combobox-item]')).toHaveLength(1);
+    expect(container!.querySelector('[data-combobox-item="voice-a"]')).toBeNull();
+    expect(container!.querySelector('[data-combobox-item="voice-b"]')).not.toBeNull();
+    expect(container!.querySelector('[data-combobox-item-group-label]')?.textContent).toBe('Korean');
+  });
+
+  it('calls onValueChange when a searchable item is picked', () => {
+    let received = '';
+    act(() => {
+      root!.render(
+        <Select
+          searchable
+          value="a"
+          onValueChange={(next) => {
+            received = next;
+          }}
+          options={[
+            { value: 'a', label: 'A' },
+            { value: 'b', label: 'B' },
+          ]}
+        />,
+      );
+    });
+
+    const item = container!.querySelector('[data-combobox-item="b"]') as HTMLElement;
+    act(() => {
+      item.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(received).toBe('b');
+  });
+
+  it('renders the searchable empty state when no items match', () => {
+    act(() => {
+      root!.render(
+        <Select
+          searchable
+          options={[{ value: 'voice-a', label: 'Voice A' }]}
+        />,
+      );
+    });
+
+    expect(container!.querySelector('[data-combobox-empty]')).toBeNull();
+    const input = container!.querySelector('[data-combobox-input]') as HTMLInputElement;
+    enterText(input, 'xyz_no_match');
+
+    expect(container!.querySelector('[data-combobox-item]')).toBeNull();
+    expect(container!.querySelector('[data-combobox-empty]')?.textContent).toBe('No matches.');
+  });
+
+  it('resets searchable filtering when the dropdown closes', () => {
+    const options = [
+      { value: 'a', label: 'Alpha' },
+      { value: 'b', label: 'Beta' },
+    ];
+    act(() => {
+      root!.render(<Select searchable options={options} />);
+    });
+
+    const input = container!.querySelector('[data-combobox-input]') as HTMLInputElement;
+    enterText(input, 'alpha');
+    expect(container!.querySelectorAll('[data-combobox-item]')).toHaveLength(1);
+
+    const trigger = container!.querySelector('[data-combobox-trigger]') as HTMLElement;
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(input.value).toBe('');
+    expect(container!.querySelectorAll('[data-combobox-item]')).toHaveLength(2);
+  });
+
+  it('updates searchable items when options change', () => {
+    act(() => {
+      root!.render(
+        <Select searchable options={[{ value: 'a', label: 'A' }]} />,
+      );
+    });
+
+    expect(container!.querySelector('[data-combobox-item="a"]')).not.toBeNull();
+
+    act(() => {
+      root!.render(
+        <Select searchable options={[{ value: 'b', label: 'B' }]} />,
+      );
+    });
+
+    expect(container!.querySelector('[data-combobox-item="a"]')).toBeNull();
+    expect(container!.querySelector('[data-combobox-item="b"]')).not.toBeNull();
   });
 });

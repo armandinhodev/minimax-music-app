@@ -1,27 +1,29 @@
 'use client';
 
 /**
- * Custom popover-based select that supports flag images inside option rows.
+ * Custom selection control that supports flag images inside option rows.
  *
- * Native HTML <select> elements cannot contain <img> inside <option> — that's
- * a browser-standard limitation, not a code choice. Showing real flag images
- * requires a popover-based listbox. We delegate to Chakra UI v3's `Select.Root`
- * which is built on top of Ark UI's Select primitive; it supports arbitrary
- * children inside `Select.Item` (so we can render <img>) and provides full
- * keyboard navigation, ARIA wiring, and a portal-based positioning layer.
+ * Native HTML <select> elements cannot contain <img> inside <option>, so the
+ * default variant uses Chakra UI's popover-based Select primitive. The
+ * searchable variant uses Chakra UI's Combobox primitive for integrated
+ * filtering. Flags appear in combobox options only because an HTML <input>
+ * cannot contain images.
  *
- * Public API mirrors the previous native wrapper:
- *   - `value` is a single string (the component internally maps to Chakra's
- *     `string[]` shape).
- *   - `options` can carry an optional `flag` (LanguageInfo) — when present
- *     we render a real flagcdn.com flag <img>; when `countryCode` is missing
- *     we fall back to the emoji defined in LanguageInfo.
- *   - Optional `groupBy` groups items visually under `ItemGroup` + `ItemGroupLabel`.
- *     Group ordering: count desc, then key asc (mirrors the /voices page sort).
+ * Public API keeps single-string values while mapping them to Chakra's
+ * string-array value shape. Optional groups are ordered by item count
+ * descending and then label ascending.
  */
 
-import { useMemo, useState } from 'react';
-import { Box, Portal, Select as ChakraSelect, createListCollection } from '@chakra-ui/react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  Box,
+  Combobox,
+  Portal,
+  Select as ChakraSelect,
+  createListCollection,
+  useFilter,
+  useListCollection,
+} from '@chakra-ui/react';
 import { getFlagUrl } from '@/lib/language-flags';
 import type { LanguageInfo } from '@/lib/language-flags';
 
@@ -42,6 +44,8 @@ export interface SelectProps {
   className?: string;
   /** When provided, options are grouped under ItemGroup headers by the returned key. Undefined returns render ungrouped. */
   groupBy?: (option: SelectOption) => string | undefined;
+  /** When true, renders an integrated search input inside the dropdown (combobox pattern). */
+  searchable?: boolean;
 }
 
 interface FlagImageProps {
@@ -78,36 +82,68 @@ function FlagImage({ flag, size }: FlagImageProps) {
 
 const FLAG_SIZE_PX = 15;
 
-function OptionContent({ option }: { option: SelectOption }) {
+function OptionContent({ option, children }: { option: SelectOption; children: ReactNode }) {
   return (
     <Box display="inline-flex" alignItems="center" gap={2} width="100%">
       {option.flag && <FlagImage flag={option.flag} size={FLAG_SIZE_PX} />}
-      <ChakraSelect.ItemText>{option.label}</ChakraSelect.ItemText>
+      {children}
     </Box>
   );
 }
 
-function UngroupedItem({ option }: { option: SelectOption }) {
+interface OptionGroup {
+  key: string | undefined;
+  options: SelectOption[];
+}
+
+function groupOptions(
+  options: SelectOption[],
+  groupBy: SelectProps['groupBy'],
+): OptionGroup[] {
+  if (!groupBy) return [{ key: undefined, options }];
+
+  const groups = new Map<string, SelectOption[]>();
+  for (const option of options) {
+    const key = groupBy(option) ?? '';
+    const group = groups.get(key);
+    if (group) group.push(option);
+    else groups.set(key, [option]);
+  }
+
+  return Array.from(groups.entries())
+    .sort(([aKey, aItems], [bKey, bItems]) => {
+      if (bItems.length !== aItems.length) return bItems.length - aItems.length;
+      return aKey.localeCompare(bKey);
+    })
+    .map(([key, groupItems]) => ({
+      key: key === '' ? undefined : key,
+      options: groupItems,
+    }));
+}
+
+function BaseItem({ option }: { option: SelectOption }) {
   return (
-    <ChakraSelect.Item key={option.value} item={option}>
-      <OptionContent option={option} />
+    <ChakraSelect.Item item={option}>
+      <OptionContent option={option}>
+        <ChakraSelect.ItemText>{option.label}</ChakraSelect.ItemText>
+      </OptionContent>
       <ChakraSelect.ItemIndicator />
     </ChakraSelect.Item>
   );
 }
 
-function GroupedItems({ groupKey, options: groupOptions }: { groupKey: string; options: SelectOption[] }) {
+function BaseGroupedItems({ groupKey, options }: { groupKey: string; options: SelectOption[] }) {
   return (
-    <ChakraSelect.ItemGroup key={groupKey} id={groupKey}>
+    <ChakraSelect.ItemGroup id={groupKey}>
       <ChakraSelect.ItemGroupLabel>{groupKey}</ChakraSelect.ItemGroupLabel>
-      {groupOptions.map((opt) => (
-        <UngroupedItem key={opt.value} option={opt} />
+      {options.map((option) => (
+        <BaseItem key={option.value} option={option} />
       ))}
     </ChakraSelect.ItemGroup>
   );
 }
 
-export function Select({
+function BaseSelect({
   value,
   onValueChange,
   options,
@@ -121,25 +157,11 @@ export function Select({
     () => createListCollection({ items: options }),
     [options],
   );
-
-  const groupedOptions = useMemo<{ key: string | undefined; options: SelectOption[] }[]>(() => {
-    if (!groupBy) return [{ key: undefined, options }];
-    const map = new Map<string, SelectOption[]>();
-    for (const opt of options) {
-      const key = groupBy(opt) ?? '';
-      const list = map.get(key);
-      if (list) list.push(opt);
-      else map.set(key, [opt]);
-    }
-    return Array.from(map.entries())
-      .sort(([aKey, aItems], [bKey, bItems]) => {
-        if (bItems.length !== aItems.length) return bItems.length - aItems.length;
-        return aKey.localeCompare(bKey);
-      })
-      .map(([key, groupItems]) => ({ key: key === '' ? undefined : key, options: groupItems }));
-  }, [options, groupBy]);
-
-  const selectedOption = value ? options.find((o) => o.value === value) : undefined;
+  const groupedOptions = useMemo(
+    () => groupOptions(options, groupBy),
+    [options, groupBy],
+  );
+  const selectedOption = value ? options.find((option) => option.value === value) : undefined;
 
   return (
     <ChakraSelect.Root
@@ -174,11 +196,11 @@ export function Select({
       <Portal>
         <ChakraSelect.Positioner>
           <ChakraSelect.Content maxH="20rem">
-            {groupedOptions.map(({ key, options: groupOptions }) =>
+            {groupedOptions.map(({ key, options: groupItems }) =>
               key === undefined ? (
-                groupOptions.map((opt) => <UngroupedItem key={opt.value} option={opt} />)
+                groupItems.map((option) => <BaseItem key={option.value} option={option} />)
               ) : (
-                <GroupedItems key={key} groupKey={key} options={groupOptions} />
+                <BaseGroupedItems key={key} groupKey={key} options={groupItems} />
               ),
             )}
           </ChakraSelect.Content>
@@ -186,4 +208,125 @@ export function Select({
       </Portal>
     </ChakraSelect.Root>
   );
+}
+
+function SearchableItem({ option }: { option: SelectOption }) {
+  return (
+    <Combobox.Item item={option}>
+      <OptionContent option={option}>
+        <Combobox.ItemText>{option.label}</Combobox.ItemText>
+      </OptionContent>
+      <Combobox.ItemIndicator />
+    </Combobox.Item>
+  );
+}
+
+function SearchableGroupedItems({ groupKey, options }: { groupKey: string; options: SelectOption[] }) {
+  return (
+    <Combobox.ItemGroup id={groupKey}>
+      <Combobox.ItemGroupLabel>{groupKey}</Combobox.ItemGroupLabel>
+      {options.map((option) => (
+        <SearchableItem key={option.value} option={option} />
+      ))}
+    </Combobox.ItemGroup>
+  );
+}
+
+function SearchableSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  disabled,
+  id,
+  className,
+  groupBy,
+}: SelectProps) {
+  const { contains } = useFilter({ sensitivity: 'base' });
+  const filterOption = useMemo(
+    () => (_itemText: string, input: string, item: SelectOption) => {
+      if (!input) return true;
+      return (
+        contains(item.label, input) ||
+        contains(item.value, input) ||
+        (item.flag?.displayName ? contains(item.flag.displayName, input) : false)
+      );
+    },
+    [contains],
+  );
+  const { collection, filter, reset, set: setItems } = useListCollection<SelectOption>({
+    initialItems: options,
+    itemToString: (item) => item.label,
+    itemToValue: (item) => item.value,
+    filter: filterOption,
+  });
+  const selectedLabel = value
+    ? options.find((option) => option.value === value)?.label ?? ''
+    : '';
+  const [inputValue, setInputValue] = useState(selectedLabel);
+
+  useEffect(() => {
+    setItems(options);
+    setInputValue(selectedLabel);
+  }, [options, selectedLabel, setItems]);
+
+  const groupedOptions = useMemo(
+    () => groupOptions(collection.items, groupBy),
+    [collection.items, groupBy],
+  );
+
+  return (
+    <Combobox.Root
+      collection={collection}
+      value={value ? [value] : []}
+      inputValue={inputValue}
+      onValueChange={(details) => {
+        const next = details.value[0];
+        if (next !== undefined) onValueChange?.(next);
+      }}
+      onInputValueChange={(details) => {
+        setInputValue(details.inputValue);
+        filter(details.inputValue);
+      }}
+      onOpenChange={(details) => {
+        if (!details.open) {
+          reset();
+          const next = details.value[0];
+          setInputValue(
+            next ? options.find((option) => option.value === next)?.label ?? '' : '',
+          );
+        }
+      }}
+      disabled={disabled}
+      size="sm"
+      width="100%"
+      className={className}
+      id={id}
+    >
+      <Combobox.Control>
+        <Combobox.Input placeholder={placeholder} />
+        <Combobox.IndicatorGroup>
+          <Combobox.Trigger />
+        </Combobox.IndicatorGroup>
+      </Combobox.Control>
+      <Portal>
+        <Combobox.Positioner>
+          <Combobox.Content maxH="20rem">
+            {groupedOptions.map(({ key, options: groupItems }) =>
+              key === undefined ? (
+                groupItems.map((option) => <SearchableItem key={option.value} option={option} />)
+              ) : (
+                <SearchableGroupedItems key={key} groupKey={key} options={groupItems} />
+              ),
+            )}
+            <Combobox.Empty>No matches.</Combobox.Empty>
+          </Combobox.Content>
+        </Combobox.Positioner>
+      </Portal>
+    </Combobox.Root>
+  );
+}
+
+export function Select({ searchable = false, ...props }: SelectProps) {
+  return searchable ? <SearchableSelect {...props} /> : <BaseSelect {...props} />;
 }
