@@ -576,7 +576,17 @@ export class MiniMaxSpeechClient {
     return allVoices.map((v) => ({
       voiceId: v.voice_id ?? v.voice_id_str ?? '',
       name: v.name ?? v.voice_id ?? '',
-      language: v.voice_id?.includes('_') ? v.voice_id.split('_')[0] : undefined,
+      // Language is only meaningful for system voices (MiniMax prefixes them
+      // with a language code like "English_", "Korean_", etc.). User voices
+      // (clone / design) get auto-generated IDs from MiniMax that may
+      // happen to contain underscores — extracting a "language" from those
+      // would misclassify them in the UI (e.g., "voice_abc123" → "voice"
+      // group). Forcing language=undefined for user voices routes them
+      // to the "My Voices" group in the dropdown.
+      language:
+        v.source === 'system' && v.voice_id?.includes('_')
+          ? v.voice_id.split('_')[0]
+          : undefined,
       type: v.source,
       ttlExpiry: undefined,
       createdAt: v.created_at ?? Date.now(),

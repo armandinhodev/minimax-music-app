@@ -42,6 +42,39 @@ describe('MiniMaxSpeechClient', () => {
       { voiceId: 'Standalone', language: undefined },
     ]);
   });
+
+  it('does not extract language for user voices (clone/design), regardless of voice_id underscore prefix', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      system_voice: {
+        english: { voice_id: 'English_Friendly_Guy', name: 'Friendly Guy' },
+      },
+      voice_cloning: [
+        { voice_id: 'my_clone_voice', name: 'My Clone' },
+        { voice_id: 'voice_abc123', name: 'Auto Cloned' },
+      ],
+      voice_generation: [
+        { voice_id: 'designed_xyz', name: 'Designed Voice' },
+        { voice_id: 'simple', name: 'Simple' },
+      ],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+
+    const voices = await new MiniMaxSpeechClient().getVoices();
+    expect(voices).toHaveLength(5);
+
+    // System voice still gets its language prefix
+    expect(voices.find((v) => v.voiceId === 'English_Friendly_Guy')?.language).toBe('English');
+
+    // Every user voice gets language=undefined regardless of underscore prefix
+    // (so they all land in the "My Voices" group in the dropdown, not in a
+    // bogus "voice" / "designed" / "my" group).
+    for (const voiceId of ['my_clone_voice', 'voice_abc123', 'designed_xyz', 'simple']) {
+      expect(voices.find((v) => v.voiceId === voiceId)?.language).toBeUndefined();
+    }
+
+    // Sanity: type tags are correctly applied.
+    expect(voices.find((v) => v.voiceId === 'voice_abc123')?.type).toBe('clone');
+    expect(voices.find((v) => v.voiceId === 'designed_xyz')?.type).toBe('design');
+  });
   it('retries abort timeouts before succeeding', async () => {
     global.fetch = vi.fn()
       .mockRejectedValueOnce(Object.assign(new Error('timeout'), { name: 'AbortError' }))
