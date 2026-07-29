@@ -11,6 +11,7 @@ import { Select, type SelectOption } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authFetch, parseApiError } from '@/lib/auth-client';
+import { getLanguageInfo } from '@/lib/language-flags';
 import type { VoiceDTO } from '@/application/dto/VoiceDTO';
 
 interface VoiceSelectorProps {
@@ -76,6 +77,7 @@ export function VoiceSelector({
       filteredVoices.map((v) => ({
         value: v.voiceId,
         label: `${v.name} (${v.voiceId})`,
+        flag: v.language ? getLanguageInfo(v.language) : undefined,
       })),
     [filteredVoices]
   );
@@ -100,6 +102,7 @@ export function VoiceSelector({
         disabled={disabled || isLoading}
         options={voiceOptions}
         placeholder={isLoading ? 'Loading voices...' : 'Select a voice'}
+        groupBy={(o) => o.flag?.displayName ?? 'Unknown'}
       />
       {filteredVoices.length === 0 && (
         <Box p={2}>

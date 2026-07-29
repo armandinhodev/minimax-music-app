@@ -2,14 +2,81 @@ import React, { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Select } from './select';
+import type { SelectOption } from './select';
 
 vi.mock('@chakra-ui/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@chakra-ui/react')>();
+  let capturedOnValueChange: ((details: { value: string[] }) => void) | undefined;
+  const passthrough = ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => (
+    <div {...props}>{children}</div>
+  );
   return {
     ...actual,
-    Box: ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => (
-      <div {...props}>{children}</div>
-    ),
+    Box: passthrough,
+    Portal: passthrough,
+    createListCollection: <T,>(config: { items: T[] }) => ({ items: config.items }),
+    Select: {
+      Root: ({
+        children,
+        onValueChange,
+        value,
+      }: {
+        children?: ReactNode;
+        onValueChange?: (details: { value: string[] }) => void;
+        value?: string[];
+      }) => {
+        capturedOnValueChange = onValueChange;
+        return (
+          <div data-select-root data-selected={value && value.length > 0 ? value[0] : ''}>
+            {children}
+          </div>
+        );
+      },
+      HiddenSelect: () => <input type="hidden" data-hidden-select />,
+      Control: passthrough,
+      Trigger: ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => (
+        <button type="button" data-select-trigger {...props}>
+          {children}
+        </button>
+      ),
+      ValueText: ({
+        children,
+        placeholder,
+      }: {
+        children?: ReactNode;
+        placeholder?: string;
+      }) => (
+        <span data-select-value>{children ?? placeholder ?? ''}</span>
+      ),
+      IndicatorGroup: passthrough,
+      Indicator: () => <span data-select-indicator />,
+      Positioner: passthrough,
+      Content: ({ children }: { children?: ReactNode }) => <div data-select-content>{children}</div>,
+      ItemGroup: ({ children, id }: { children?: ReactNode; id?: string }) => (
+        <div data-item-group data-group-id={id}>
+          {children}
+        </div>
+      ),
+      ItemGroupLabel: ({ children }: { children?: ReactNode }) => (
+        <div data-item-group-label>{children}</div>
+      ),
+      Item: ({
+        children,
+        item,
+      }: {
+        children?: ReactNode;
+        item: SelectOption;
+      }) => (
+        <div
+          data-select-item={item.value}
+          onClick={() => capturedOnValueChange?.({ value: [item.value] })}
+        >
+          {children}
+        </div>
+      ),
+      ItemText: ({ children }: { children?: ReactNode }) => <span data-item-text>{children}</span>,
+      ItemIndicator: () => <span data-item-indicator />,
+    },
   };
 });
 
@@ -33,7 +100,7 @@ describe('Select', () => {
     container = null;
   });
 
-  it('renders one <option> per item plus a disabled placeholder option', () => {
+  it('renders one item per option plus a trigger (no flags, no grouping)', () => {
     act(() => {
       root!.render(
         <Select
@@ -42,56 +109,99 @@ describe('Select', () => {
             { value: 'a', label: 'A' },
             { value: 'b', label: 'B' },
           ]}
-        />
+        />,
       );
     });
 
-    const nativeSelect = container!.querySelector('select');
-    expect(nativeSelect).not.toBeNull();
-
-    const options = Array.from(nativeSelect!.querySelectorAll('option')) as HTMLOptionElement[];
-    expect(options).toHaveLength(3);
-    expect(options[0].textContent).toBe('Choose...');
-    expect(options[0].disabled).toBe(true);
-    expect(options[1].textContent).toBe('A');
-    expect(options[1].value).toBe('a');
-    expect(options[2].textContent).toBe('B');
-    expect(options[2].value).toBe('b');
+    const itemA = container!.querySelector('[data-select-item="a"]');
+    const itemB = container!.querySelector('[data-select-item="b"]');
+    expect(itemA).not.toBeNull();
+    expect(itemB).not.toBeNull();
+    expect(itemA!.querySelector('[data-item-text]')?.textContent).toBe('A');
+    expect(itemB!.querySelector('[data-item-text]')?.textContent).toBe('B');
+    expect(container!.querySelector('[data-select-trigger]')).not.toBeNull();
+    expect(container!.querySelector('[data-select-value]')?.textContent).toBe('Choose...');
   });
 
-  it('does not place any non-option element directly inside the native <select>', () => {
+  it('renders a flag <img> inside each item when flag is provided', () => {
+    act(() => {
+      root!.render(
+        <Select
+          value="English_A"
+          options={[
+            {
+              value: 'English_A',
+              label: 'English A',
+              flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' },
+            },
+          ]}
+        />,
+      );
+    });
+
+    const item = container!.querySelector('[data-select-item="English_A"]');
+    const img = item?.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe('https://flagcdn.com/20x15/gb.png');
+    expect(img?.getAttribute('alt')).toBe('English');
+    expect(img?.getAttribute('width')).toBe('20');
+    expect(img?.getAttribute('height')).toBe('15');
+  });
+
+  it('renders an emoji fallback for items whose flag has no countryCode', () => {
     act(() => {
       root!.render(
         <Select
           options={[
-            { value: 'a', label: 'A' },
-            { value: 'b', label: 'B' },
+            {
+              value: 'Robot_Armor',
+              label: 'Robot Armor',
+              flag: { displayName: 'Robot / Synthetic', fallbackEmoji: '🤖' },
+            },
           ]}
-        />
+        />,
       );
     });
 
-    const nativeSelect = container!.querySelector('select');
-    expect(nativeSelect).not.toBeNull();
-
-    // Every direct child must be an <option>. This catches the regression
-    // where the old compound pieces (SelectTrigger / SelectContent) wrapped
-    // children in <Box>, which produced invalid <div> elements inside
-    // <select> and triggered the React hydration error:
-    //   "In HTML, <div> cannot be a child of <select>."
-    const directChildren = Array.from(nativeSelect!.children);
-    expect(directChildren.length).toBeGreaterThan(0);
-    directChildren.forEach((child) => {
-      expect(child.tagName).toBe('OPTION');
-    });
+    const item = container!.querySelector('[data-select-item="Robot_Armor"]');
+    expect(item?.querySelector('img')).toBeNull();
+    expect(item?.textContent).toContain('🤖');
   });
 
-  it('calls onValueChange with the selected value when the user changes selection', () => {
+  it('groups items under ItemGroup + ItemGroupLabel when groupBy is set', () => {
+    const groupedOptions = [
+      { value: 'English_A', label: 'English A', flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' } },
+      { value: 'English_B', label: 'English B', flag: { countryCode: 'gb', displayName: 'English', fallbackEmoji: '🌐' } },
+      { value: 'Korean_A', label: 'Korean A', flag: { countryCode: 'kr', displayName: 'Korean', fallbackEmoji: '🌐' } },
+      { value: 'Spanish_A', label: 'Spanish A', flag: { countryCode: 'es', displayName: 'Spanish', fallbackEmoji: '🌐' } },
+    ];
+
+    act(() => {
+      root!.render(
+        <Select
+          options={groupedOptions}
+          groupBy={(o) => o.flag?.displayName}
+        />,
+      );
+    });
+
+    const groups = Array.from(container!.querySelectorAll('[data-item-group]'));
+    expect(groups).toHaveLength(3);
+
+    const labels = Array.from(container!.querySelectorAll('[data-item-group-label]')).map(
+      (el) => el.textContent,
+    );
+    expect(labels).toEqual(
+      expect.arrayContaining(['English', 'Korean', 'Spanish']),
+    );
+  });
+
+  it('calls onValueChange with the picked item value', () => {
     let received = '';
     act(() => {
       root!.render(
         <Select
-          value=""
+          value="a"
           onValueChange={(v) => {
             received = v;
           }}
@@ -99,16 +209,33 @@ describe('Select', () => {
             { value: 'a', label: 'A' },
             { value: 'b', label: 'B' },
           ]}
-        />
+        />,
       );
     });
 
-    const nativeSelect = container!.querySelector('select') as HTMLSelectElement;
-    nativeSelect.value = 'b';
+    const itemB = container!.querySelector('[data-select-item="b"]') as HTMLElement;
     act(() => {
-      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      itemB.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     expect(received).toBe('b');
+  });
+
+  it('renders the placeholder when value is empty', () => {
+    act(() => {
+      root!.render(
+        <Select
+          placeholder="Pick one..."
+          value=""
+          options={[
+            { value: 'a', label: 'A' },
+            { value: 'b', label: 'B' },
+          ]}
+        />,
+      );
+    });
+
+    const valueEl = container!.querySelector('[data-select-value]');
+    expect(valueEl?.textContent).toBe('Pick one...');
   });
 });
