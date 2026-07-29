@@ -10,7 +10,7 @@ import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
 import { authFetch, parseApiError } from '@/lib/auth-client';
 import { ErrorDisplay } from '@/components/shared/ErrorDisplay';
 import { TextInput } from '@/components/tts/TextInput';
@@ -20,7 +20,13 @@ import { StreamingPlayer } from '@/components/tts/StreamingPlayer';
 import { saveHistoryItem } from '@/lib/history';
 import { DEFAULT_T2A_FORMAT, DEFAULT_T2A_MODEL } from '@/domain/value-objects/T2APolicy';
 
-const FORMAT_OPTIONS = [
+const MODEL_OPTIONS: SelectOption[] = [
+  { value: 'speech-2.8-hd', label: 'speech-2.8-hd' },
+  { value: 'speech-2.8', label: 'speech-2.8' },
+  { value: 'speech-01', label: 'speech-01' },
+];
+
+const FORMAT_OPTIONS: SelectOption[] = [
   { value: 'mp3', label: 'MP3' },
   { value: 'pcm', label: 'PCM' },
   { value: 'flac', label: 'FLAC' },
@@ -125,31 +131,19 @@ export default function TTSPage() {
           <Box display="grid" gridTemplateColumns="repeat(2, 1fr)" gap={4}>
             <Box display="grid" gap={2}>
               <Label>Model</Label>
-              <Select value={model} onValueChange={(v) => v && setModel(v as typeof model)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="speech-2.8-hd">speech-2.8-hd</SelectItem>
-                  <SelectItem value="speech-2.8">speech-2.8</SelectItem>
-                  <SelectItem value="speech-01">speech-01</SelectItem>
-                </SelectContent>
-              </Select>
+              <Select
+                value={model}
+                onValueChange={(v) => v && setModel(v as typeof model)}
+                options={MODEL_OPTIONS}
+              />
             </Box>
             <Box display="grid" gap={2}>
               <Label>Format</Label>
-              <Select value={format} onValueChange={(v) => v && setFormat(v as typeof format)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMAT_OPTIONS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Select
+                value={format}
+                onValueChange={(v) => v && setFormat(v as typeof format)}
+                options={FORMAT_OPTIONS}
+              />
             </Box>
           </Box>
 

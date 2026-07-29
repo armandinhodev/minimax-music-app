@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { Box } from '@chakra-ui/react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authFetch, parseApiError } from '@/lib/auth-client';
@@ -71,6 +71,15 @@ export function VoiceSelector({
     );
   }, [voices, filterType, search]);
 
+  const voiceOptions = useMemo<SelectOption[]>(
+    () =>
+      filteredVoices.map((v) => ({
+        value: v.voiceId,
+        label: `${v.name} (${v.voiceId})`,
+      })),
+    [filteredVoices]
+  );
+
   const selectedVoice = voices.find((v) => v.voiceId === value);
 
   return (
@@ -85,30 +94,20 @@ export function VoiceSelector({
         />
       </Box>
       <Select
+        id="voice-selector"
         value={value}
         onValueChange={(v) => v && onChange(v)}
         disabled={disabled || isLoading}
-      >
-        <SelectTrigger id="voice-selector">
-          <SelectValue
-            placeholder={isLoading ? 'Loading voices...' : 'Select a voice'}
-          />
-        </SelectTrigger>
-        <SelectContent>
-          {filteredVoices.length === 0 && (
-            <Box p={2}>
-              <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                {search ? 'No matching voices.' : 'No voices available.'}
-              </p>
-            </Box>
-          )}
-          {filteredVoices.map((voice) => (
-            <SelectItem key={voice.voiceId} value={voice.voiceId}>
-              {voice.name} ({voice.voiceId})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        options={voiceOptions}
+        placeholder={isLoading ? 'Loading voices...' : 'Select a voice'}
+      />
+      {filteredVoices.length === 0 && (
+        <Box p={2}>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+            {search ? 'No matching voices.' : 'No voices available.'}
+          </p>
+        </Box>
+      )}
       {error && <p style={{ fontSize: '0.75rem', color: '#dc2626' }}>{error}</p>}
       {selectedVoice && (
         <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>

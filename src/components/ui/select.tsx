@@ -2,23 +2,41 @@
 
 import { Box } from "@chakra-ui/react";
 
-interface SelectOption {
+export interface SelectOption {
   value: string;
   label: string;
 }
 
-interface SelectProps {
+export interface SelectProps {
   value?: string;
   onValueChange?: (value: string) => void;
-  children?: React.ReactNode;
-  className?: string;
+  options: SelectOption[];
+  placeholder?: string;
   disabled?: boolean;
   id?: string;
-  placeholder?: string;
-  options?: SelectOption[];
+  className?: string;
 }
 
-function Select({ value, onValueChange, children, className, disabled, id, placeholder, options }: SelectProps) {
+/**
+ * Native <select> wrapper styled with Chakra Box.
+ *
+ * Important: this renders a real <select>, so only <option> elements may be
+ * direct children. A previous compound API (SelectTrigger / SelectContent /
+ * SelectItem) was removed because SelectTrigger and SelectContent wrapped
+ * their children in <Box>, which produced invalid HTML when nested inside
+ * the native <select> and triggered React hydration errors at runtime
+ * ("In HTML, <div> cannot be a child of <select>."). See select.test.tsx
+ * for the regression guard.
+ */
+export function Select({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  disabled,
+  id,
+  className,
+}: SelectProps) {
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onValueChange?.(e.target.value);
   };
@@ -46,7 +64,11 @@ function Select({ value, onValueChange, children, className, disabled, id, place
         }}
       >
         {placeholder && <option value="" disabled>{placeholder}</option>}
-        {options ? options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : children}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </select>
       <Box position="absolute" right="0.625rem" top="50%" transform="translateY(-50%)" pointerEvents="none" color="gray.500" fontSize="0.75rem">
         ▼
@@ -54,42 +76,3 @@ function Select({ value, onValueChange, children, className, disabled, id, place
     </Box>
   );
 }
-
-function SelectTrigger({ children, id }: { children?: React.ReactNode; className?: string; id?: string }) {
-  return <Box id={id}>{children}</Box>;
-}
-
-function SelectContent({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <Box className={className}>{children}</Box>;
-}
-
-function SelectItem({ value, children, className }: { value: string; children?: React.ReactNode; className?: string }) {
-  return <option value={value} className={className}>{children}</option>;
-}
-
-function SelectValue({ children, placeholder }: { children?: React.ReactNode; placeholder?: string }) {
-  return <>{children || placeholder}</>;
-}
-
-function SelectLabel({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <optgroup label={children as string} className={className}>{children}</optgroup>;
-}
-
-function SelectGroup({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <optgroup className={className}>{children}</optgroup>;
-}
-
-function SelectSeparator({ className }: { className?: string }) {
-  return <option disabled className={className}>────────</option>;
-}
-
-export {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-  SelectLabel,
-  SelectGroup,
-  SelectSeparator,
-};
