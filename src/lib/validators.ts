@@ -8,6 +8,10 @@ import { z } from 'zod';
 
 import { FilePurposeSchema, ListFilesSchema, UploadFileSchema } from '@/application/dto/FileDTO';
 import {
+  GenerateImageSchema,
+  type GenerateImageRequest,
+} from '@/application/dto/ImageDTO';
+import {
   SynthesizeT2ASchema,
   StreamT2ASchema,
   SubmitAsyncT2ASchema,
@@ -28,6 +32,9 @@ export type T2AStreamRequest = StreamT2ARequest;
 
 export const AsyncT2ASubmitSchema = SubmitAsyncT2ASchema;
 export type AsyncT2ASubmit = SubmitAsyncT2ARequest;
+
+export const GenerateImageRequestSchema = GenerateImageSchema;
+export type GenerateImage = GenerateImageRequest;
 
 export const ListFilesRequestSchema = ListFilesSchema;
 export type ListFilesRequest = z.infer<typeof ListFilesSchema>;

@@ -1,30 +1,35 @@
 /**
  * Shared server-only auth utilities for Route Handlers.
- * Validates APP_ACCESS_KEY bearer tokens.
+ * Validates configured app access bearer tokens.
  */
 
 import { NextResponse } from 'next/server';
 
 /**
- * The name of the APP_ACCESS_KEY environment variable.
+ * The supported app access environment variable names.
  */
 export const APP_ACCESS_KEY_ENV = 'APP_ACCESS_KEY';
+export const APP_ACCESS_TOKEN_ENV = 'APP_ACCESS_TOKEN';
 
 /**
- * Retrieves the configured APP_ACCESS_KEY from environment.
+ * Retrieves the configured app access token from environment.
  * Returns undefined if the key is missing or blank.
+ * APP_ACCESS_KEY is preferred; APP_ACCESS_TOKEN is kept as a compatibility alias.
  */
 function getAppAccessKey(): string | undefined {
-  const key = process.env[APP_ACCESS_KEY_ENV];
-  if (!key || typeof key !== 'string' || key.trim() === '') {
-    return undefined;
+  for (const envName of [APP_ACCESS_KEY_ENV, APP_ACCESS_TOKEN_ENV]) {
+    const key = process.env[envName];
+    if (typeof key === 'string' && key.trim() !== '') {
+      return key.trim();
+    }
   }
-  return key;
+
+  return undefined;
 }
 
 /**
- * Validates the Authorization header as a Bearer token against APP_ACCESS_KEY.
- * Fails CLOSED: returns false if APP_ACCESS_KEY is missing/blank, or if the
+ * Validates the Authorization header as a Bearer token against the configured key.
+ * Fails CLOSED: returns false if the configured key is missing/blank, or if the
  * Authorization header does not match the expected Bearer token.
  * "Bearer undefined" must never authorize.
  */

@@ -56,6 +56,43 @@ describe('isAuthorized', () => {
     }
   });
 
+  it('trims configured APP_ACCESS_KEY whitespace before comparing', async () => {
+    const { isAuthorized } = await import('@/app/api/_shared/auth');
+
+    const original = process.env.APP_ACCESS_KEY;
+    process.env.APP_ACCESS_KEY = '  my_secret_key  ';
+
+    try {
+      expect(isAuthorized('Bearer my_secret_key')).toBe(true);
+    } finally {
+      process.env.APP_ACCESS_KEY = original;
+    }
+  });
+
+  it('accepts APP_ACCESS_TOKEN as a compatibility alias', async () => {
+    const { isAuthorized } = await import('@/app/api/_shared/auth');
+
+    const originalKey = process.env.APP_ACCESS_KEY;
+    const originalToken = process.env.APP_ACCESS_TOKEN;
+    delete process.env.APP_ACCESS_KEY;
+    process.env.APP_ACCESS_TOKEN = 'token_secret';
+
+    try {
+      expect(isAuthorized('Bearer token_secret')).toBe(true);
+    } finally {
+      if (originalKey === undefined) {
+        delete process.env.APP_ACCESS_KEY;
+      } else {
+        process.env.APP_ACCESS_KEY = originalKey;
+      }
+      if (originalToken === undefined) {
+        delete process.env.APP_ACCESS_TOKEN;
+      } else {
+        process.env.APP_ACCESS_TOKEN = originalToken;
+      }
+    }
+  });
+
   it('returns false when authHeader does not match APP_ACCESS_KEY', async () => {
     const { isAuthorized } = await import('@/app/api/_shared/auth');
 

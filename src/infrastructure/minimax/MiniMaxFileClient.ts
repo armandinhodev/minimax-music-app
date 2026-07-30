@@ -269,15 +269,18 @@ export class MiniMaxFileClient {
       { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 5_000 }
     );
 
-    const fileId = data.data?.file_id?.trim();
+    const rawFileId = data.file?.file_id;
+    const fileId = typeof rawFileId === 'string' || typeof rawFileId === 'number'
+      ? String(rawFileId).trim()
+      : '';
     if (!fileId) throw new MiniMaxFileError('MiniMax returned an empty file ID', 0, 502);
 
     return {
       fileId,
-      fileName: data.data?.file_name ?? fileName,
+      fileName: data.file?.filename ?? fileName,
       purpose,
-      size: data.data?.file_size ?? fileContent.length,
-      createdAt: data.data?.created_at ?? Date.now(),
+      size: data.file?.bytes ?? fileContent.length,
+      createdAt: data.file?.created_at ?? Date.now(),
     };
   }
 
@@ -436,14 +439,13 @@ export class MiniMaxFileClient {
 // ---------------------------------------------------------------------------
 
 interface MiniMaxFileUploadResponse {
-  code: number;
-  msg: string;
   base_resp?: { status_code: number; status_msg: string };
-  data?: {
-    file_id: string;
-    file_name: string;
-    file_size: number;
+  file?: {
+    file_id?: string | number | null;
+    filename: string;
+    bytes: number;
     created_at: number;
+    purpose: string;
   };
 }
 

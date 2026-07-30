@@ -26,11 +26,12 @@ describe('MiniMaxFileClient.uploadFile', () => {
     global.fetch = vi.fn()
       .mockRejectedValueOnce(Object.assign(new Error('timeout'), { name: 'AbortError' }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        data: {
-          file_id: 'file_123',
-          file_name: 'sample.wav',
-          file_size: 4,
+        file: {
+          file_id: 123456,
+          filename: 'sample.wav',
+          bytes: 4,
           created_at: 123,
+          purpose: 'voice_clone',
         },
       }), {
         status: 200,
@@ -42,7 +43,7 @@ describe('MiniMaxFileClient.uploadFile', () => {
 
     await vi.runAllTimersAsync();
 
-    await expect(uploadPromise).resolves.toMatchObject({ fileId: 'file_123' });
+    await expect(uploadPromise).resolves.toMatchObject({ fileId: '123456' });
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -53,11 +54,12 @@ describe('MiniMaxFileClient.uploadFile', () => {
         headers: { 'retry-after': '0', 'Content-Type': 'application/json' },
       }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        data: {
+        file: {
           file_id: 'file_123',
-          file_name: 'sample.wav',
-          file_size: 4,
+          filename: 'sample.wav',
+          bytes: 4,
           created_at: 123,
+          purpose: 'voice_clone',
         },
       }), {
         status: 200,
@@ -90,11 +92,12 @@ describe('MiniMaxFileClient.uploadFile', () => {
         headers: { 'retry-after': '1', 'Content-Type': 'application/json' },
       }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        data: {
+        file: {
           file_id: 'file_123',
-          file_name: 'sample.wav',
-          file_size: 4,
+          filename: 'sample.wav',
+          bytes: 4,
           created_at: 123,
+          purpose: 'voice_clone',
         },
       }), {
         status: 200,
@@ -322,11 +325,12 @@ describe('MiniMaxFileClient.uploadFile', () => {
 
   it('rejects upload responses with an empty file_id with a 502 error', async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: {
+      file: {
         file_id: '',
-        file_name: 'sample.wav',
-        file_size: 4,
+        filename: 'sample.wav',
+        bytes: 4,
         created_at: 123,
+        purpose: 'voice_clone',
       },
     }), {
       status: 200,
@@ -349,11 +353,39 @@ describe('MiniMaxFileClient.uploadFile', () => {
 
   it('rejects upload responses whose file_id is whitespace-only', async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: {
+      file: {
         file_id: '   ',
-        file_name: 'sample.wav',
-        file_size: 4,
+        filename: 'sample.wav',
+        bytes: 4,
         created_at: 123,
+        purpose: 'voice_clone',
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    const client = new MiniMaxFileClient();
+    const uploadPromise = client.uploadFile(Buffer.from([1, 2, 3, 4]), 'sample.wav', 'voice_clone');
+    const expectation = expect(uploadPromise).rejects.toMatchObject({
+      name: 'MiniMaxFileError',
+      status: 502,
+      message: 'MiniMax returned an empty file ID',
+    });
+
+    await vi.runAllTimersAsync();
+
+    await expectation;
+  });
+
+  it('rejects upload responses whose file_id is null', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      file: {
+        file_id: null,
+        filename: 'sample.wav',
+        bytes: 4,
+        created_at: 123,
+        purpose: 'voice_clone',
       },
     }), {
       status: 200,

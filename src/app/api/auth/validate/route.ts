@@ -1,6 +1,6 @@
 /**
  * POST /api/auth/validate
- * Validates the provided APP_ACCESS_KEY and returns 200 if valid, 401 if not.
+ * Validates the provided app access key and returns 200 if valid, 401 if not.
  * Used by the login screen to verify the key before storing it in sessionStorage.
  */
 

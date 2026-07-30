@@ -30,6 +30,7 @@ export default function CloneVoicePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<{ code: number | null; message: string | null; details?: { upstreamStatus?: number; upstreamMessage?: string } } | null>(null);
   const [clonedVoice, setClonedVoice] = useState<VoiceDTO | null>(null);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
 
   const handleFileSelected = (_file: File) => {
     setUploadedFileId(null);
@@ -40,6 +41,7 @@ export default function CloneVoicePage() {
   const handleUploadComplete = (fileId: string) => {
     setUploadedFileId(fileId);
     setError(null);
+    setActionStatus('Audio uploaded. Add a voice ID, then clone the voice.');
   };
 
   const handleClone = async () => {
@@ -53,6 +55,7 @@ export default function CloneVoicePage() {
     }
 
     setError(null);
+    setActionStatus(null);
     setIsLoading(true);
 
     try {
@@ -74,7 +77,13 @@ export default function CloneVoicePage() {
 
       const data = await response.json();
       setClonedVoice(data.voice);
-      saveHistoryItem({ type: 'clone', voiceId: data.voice.voiceId, fileId: uploadedFileId });
+      setActionStatus('Voice cloned successfully and saved to Library. It is ready for Text to Speech.');
+      saveHistoryItem({
+        type: 'clone',
+        voiceId: data.voice.voiceId,
+        fileId: uploadedFileId,
+        ttlExpiry: data.voice.ttlExpiry ?? Date.now() + CLONE_TTL_MS,
+      });
     } catch {
       setError({ code: null, message: 'Failed to clone voice. Check your connection.' });
     } finally {
@@ -93,7 +102,7 @@ export default function CloneVoicePage() {
         </Box>
       </Box>
 
-      <Card>
+      <Card accent="purple">
         <CardHeader>
           <CardTitle>Voice Clone</CardTitle>
           <CardDescription>
@@ -119,9 +128,14 @@ export default function CloneVoicePage() {
           </Box>
 
           {error && <ErrorDisplay code={error.code} message={error.message} details={error.details} />}
+          {actionStatus && !error && (
+            <Box border="1px solid" borderColor="green.100" borderLeft="3px solid" borderLeftColor="green.400" borderRadius="md" bg="white" p="0.75rem" color="green.800" fontSize="sm">
+              {actionStatus}
+            </Box>
+          )}
 
           <Box display="flex" gap={2}>
-            <Button onClick={handleClone} disabled={isLoading || !uploadedFileId}>
+            <Button onClick={handleClone} disabled={isLoading || !uploadedFileId} colorPalette="green">
               {isLoading ? 'Cloning...' : 'Clone Voice'}
             </Button>
           </Box>
@@ -130,11 +144,11 @@ export default function CloneVoicePage() {
 
       {/* Success State */}
       {clonedVoice && (
-        <Card>
+        <Card accent="green">
           <CardHeader>
             <CardTitle>Voice Cloned Successfully</CardTitle>
             <CardDescription>
-              Your voice clone is ready. Use the voice ID <code style={{ fontSize: '0.75rem', backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{clonedVoice.voiceId}</code> in Text to Speech.
+              Your voice clone is ready. Use the voice ID <code style={{ fontSize: '0.75rem', backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{clonedVoice.voiceId}</code> in Text to Speech. Fresh clones may appear there before the MiniMax voice list refreshes.
             </CardDescription>
           </CardHeader>
           <CardContent display="grid" gap={4}>

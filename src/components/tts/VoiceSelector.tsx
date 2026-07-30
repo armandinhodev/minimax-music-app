@@ -5,7 +5,7 @@
  * Fetches voices from GET /api/minimax/voices and renders a searchable select.
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { memo, useEffect, useId, useState, useMemo } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,22 @@ import { authFetch, parseApiError } from '@/lib/auth-client';
 import { getLanguageInfo } from '@/lib/language-flags';
 import { getHistoryItems } from '@/lib/history';
 import type { VoiceDTO } from '@/application/dto/VoiceDTO';
+
+const USER_VOICE_TTL_MS = 168 * 60 * 60 * 1000;
+
+const getVoiceOptionGroup = (option: SelectOption) => option.flag?.displayName ?? 'My Voices';
+const getVoiceGroupOrder = (key: string) => (key === 'My Voices' ? -1 : 0);
+
+function getVoiceTypeLabel(type: VoiceDTO['type']): string {
+  if (type === 'clone') return 'Cloned voice';
+  if (type === 'design') return 'Designed voice';
+  return 'System voice';
+}
+
+function formatExpiry(ttlExpiry?: number): string | null {
+  if (!ttlExpiry) return null;
+  return `expires ${new Date(ttlExpiry).toLocaleDateString()}`;
+}
 
 interface VoiceSelectorProps {
   value: string;
@@ -22,13 +38,14 @@ interface VoiceSelectorProps {
   filterType?: 'all' | 'system' | 'user';
 }
 
-export function VoiceSelector({
+export const VoiceSelector = memo(function VoiceSelector({
   value,
   onChange,
   label = 'Voice',
   disabled = false,
   filterType = 'all',
 }: VoiceSelectorProps) {
+  const selectId = useId();
   const [voices, setVoices] = useState<VoiceDTO[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,42 +79,48 @@ export function VoiceSelector({
     // and the T2A Async API for speech generation." Designed voices are
     // NOT excluded here.
     //
-    // Workaround for MiniMax /v1/get_voice not listing designed voices:
-    // the API returns voice_generation: [] even after designing (verified
-    // empirically), so we supplement the API list with designed voices
-    // from localStorage history. These have a 168-hour TTL per MiniMax
-    // docs; we filter by ttlExpiry so expired entries don't surface.
+    // Workaround for MiniMax /v1/get_voice not listing fresh user voices:
+    // designed voices and freshly cloned-but-unused voices can be valid for
+    // TTS before the API returns them, so supplement with local history.
+    // These have a 168-hour TTL per MiniMax docs; expired entries don't surface.
     // API voices take precedence on duplicate voiceId.
     const fromHistory = (() => {
       if (typeof window === 'undefined') return [];
       const items = getHistoryItems();
       const now = Date.now();
       return items
-        .filter(
-          (item) =>
-            item.type === 'design' &&
-            typeof item.voiceId === 'string' &&
-            item.voiceId.length > 0 &&
-            typeof item.ttlExpiry === 'number' &&
-            item.ttlExpiry > now,
-        )
+        .flatMap((item) => {
+          if (
+            (item.type !== 'clone' && item.type !== 'design') ||
+            typeof item.voiceId !== 'string' ||
+            item.voiceId.length === 0
+          ) {
+            return [];
+          }
+
+          const ttlExpiry = typeof item.ttlExpiry === 'number'
+            ? item.ttlExpiry
+            : item.createdAt + USER_VOICE_TTL_MS;
+
+          return ttlExpiry > now ? [{ item, ttlExpiry }] : [];
+        })
         .map<VoiceDTO>((item) => ({
-          voiceId: item.voiceId as string,
+          voiceId: item.item.voiceId as string,
           // History doesn't store the voice name; fall back to the voiceId
           // as the human-readable label. Library already shows the full
           // voiceId next to history entries, so users recognize them.
-          name: item.voiceId as string,
-          type: 'design',
+          name: item.item.voiceId as string,
+          type: item.item.type === 'clone' ? 'clone' : 'design',
           ttlExpiry: item.ttlExpiry,
-          createdAt: item.createdAt,
+          createdAt: item.item.createdAt,
         }));
     })();
 
     const apiVoiceIds = new Set(voices.map((v) => v.voiceId));
-    const designedFromHistory = fromHistory.filter(
+    const userVoicesFromHistory = fromHistory.filter(
       (v) => !apiVoiceIds.has(v.voiceId),
     );
-    const merged = [...voices, ...designedFromHistory];
+    const merged = [...voices, ...userVoicesFromHistory];
 
     if (filterType === 'system') {
       return merged.filter((voice) => voice.type === 'system');
@@ -112,34 +135,44 @@ export function VoiceSelector({
     () =>
       filteredVoices.map((v) => ({
         value: v.voiceId,
-        label: `${v.name} (${v.voiceId})`,
+        label: [
+          `${v.name} (${v.voiceId})`,
+          getVoiceTypeLabel(v.type),
+          formatExpiry(v.ttlExpiry),
+        ].filter(Boolean).join(' - '),
         flag: v.language ? getLanguageInfo(v.language) : undefined,
       })),
     [filteredVoices]
   );
 
-  const selectedVoice = voices.find((v) => v.voiceId === value);
+  const selectedVoice = filteredVoices.find((v) => v.voiceId === value);
 
   return (
     <Box display="grid" gap={2}>
-      <Label htmlFor="voice-selector">{label}</Label>
+      <Label htmlFor={selectId}>{label}</Label>
       <Select
-        id="voice-selector"
+        id={selectId}
         value={value}
         onValueChange={(v) => v && onChange(v)}
         disabled={disabled || isLoading}
         options={voiceOptions}
         placeholder={isLoading ? 'Loading voices...' : 'Select a voice'}
-        groupBy={(o) => o.flag?.displayName ?? 'My Voices'}
-        groupOrder={(key) => (key === 'My Voices' ? -1 : 0)}
+        groupBy={getVoiceOptionGroup}
+        groupOrder={getVoiceGroupOrder}
         searchable
       />
       {error && <p style={{ fontSize: '0.75rem', color: '#dc2626' }}>{error}</p>}
       {selectedVoice && (
-        <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-          Voice ID: <code style={{ backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{selectedVoice.voiceId}</code>
-        </p>
+        <Box display="grid" gap={1} fontSize="0.75rem" color="gray.600">
+          <p>
+            Type: {getVoiceTypeLabel(selectedVoice.type)}
+            {selectedVoice.ttlExpiry ? `, ${formatExpiry(selectedVoice.ttlExpiry)}` : ''}
+          </p>
+          <p>
+            Voice ID: <code style={{ backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{selectedVoice.voiceId}</code>
+          </p>
+        </Box>
       )}
     </Box>
   );
-}
+});

@@ -115,12 +115,26 @@ describe('saveHistoryItem', () => {
       text: 'sample text',
       fileId: 'file_abc',
       taskId: 'task_123',
+      audioStorageKey: 'audio-key-1',
+      imageUrls: ['https://example.com/image.png'],
+      format: 'mp3',
+      aspectRatio: '1:1',
+      seed: 42,
+      model: 'image-01',
+      promptOptimizer: true,
       ttlExpiry: Date.now() + 9 * 60 * 60 * 1000,
     });
 
     expect(item.voiceId).toBe('my-voice-1');
     expect(item.fileId).toBe('file_abc');
     expect(item.taskId).toBe('task_123');
+    expect(item.audioStorageKey).toBe('audio-key-1');
+    expect(item.imageUrls).toEqual(['https://example.com/image.png']);
+    expect(item.format).toBe('mp3');
+    expect(item.aspectRatio).toBe('1:1');
+    expect(item.seed).toBe(42);
+    expect(item.model).toBe('image-01');
+    expect(item.promptOptimizer).toBe(true);
     expect(item.ttlExpiry).toBeDefined();
   });
 
@@ -256,6 +270,27 @@ describe('non-secret storage contract', () => {
     expect(storedValue).not.toContain('app_access_key');
     expect(storedValue).not.toContain('sessionStorage');
   });
+
+  it('stores only whitelisted metadata fields', () => {
+    saveHistoryItem({
+      type: 'tts',
+      text: 'test',
+      audioStorageKey: 'audio-key-1',
+      format: 'mp3',
+      imageUrls: ['https://example.com/image.png'],
+      audio: '00010203',
+      hex: '00010203',
+    } as unknown as Parameters<typeof saveHistoryItem>[0]);
+
+    const setCall = mockLocalStorage.setItem.mock.calls[0];
+    const storedValue = setCall[1] as string;
+    expect(storedValue).toContain('audio-key-1');
+    expect(storedValue).toContain('mp3');
+    expect(storedValue).toContain('https://example.com/image.png');
+    expect(storedValue).not.toContain('"audio"');
+    expect(storedValue).not.toContain('"hex"');
+    expect(storedValue).not.toContain('00010203');
+  });
 });
 
 /**
@@ -271,13 +306,32 @@ describe('saveHistoryItem contract for production call sites', () => {
       text: 'hello world',
       voiceId: 'sys_voice_1',
       audioUrl: 'https://example.com/audio.mp3',
+      format: 'mp3',
     });
     expect(item.type).toBe('tts');
     expect(item.text).toBe('hello world');
     expect(item.voiceId).toBe('sys_voice_1');
     expect(item.audioUrl).toBe('https://example.com/audio.mp3');
+    expect(item.format).toBe('mp3');
     expect(item.fileId).toBeUndefined();
     expect(item.ttlExpiry).toBeUndefined();
+  });
+
+  it('accepts the sync T2A local audio storage shape (text + voiceId + audioStorageKey)', () => {
+    const item = saveHistoryItem({
+      type: 'tts',
+      text: 'hello world',
+      voiceId: 'sys_voice_1',
+      audioStorageKey: 'audio-key-1',
+      format: 'mp3',
+    });
+
+    expect(item.type).toBe('tts');
+    expect(item.text).toBe('hello world');
+    expect(item.voiceId).toBe('sys_voice_1');
+    expect(item.audioStorageKey).toBe('audio-key-1');
+    expect(item.format).toBe('mp3');
+    expect(item.audioUrl).toBeUndefined();
   });
 
   it('accepts the stream T2A success shape (text + voiceId only)', () => {
@@ -311,6 +365,31 @@ describe('saveHistoryItem contract for production call sites', () => {
     });
     expect(item.type).toBe('design');
     expect(item.voiceId).toBe('designed_voice_1');
+    expect(item.ttlExpiry).toBe(ttl);
+  });
+
+  it('accepts the image generation success shape without storing secrets or binary payloads', () => {
+    const ttl = Date.now() + 24 * 60 * 60 * 1000;
+    const item = saveHistoryItem({
+      type: 'image',
+      source: 'image-to-image',
+      text: 'A premium studio product shot.',
+      imageUrls: ['https://example.com/image-1.png', 'https://example.com/image-2.png'],
+      aspectRatio: '16:9',
+      seed: 123,
+      model: 'image-01',
+      promptOptimizer: true,
+      ttlExpiry: ttl,
+    });
+
+    expect(item.type).toBe('image');
+    expect(item.source).toBe('image-to-image');
+    expect(item.text).toBe('A premium studio product shot.');
+    expect(item.imageUrls).toEqual(['https://example.com/image-1.png', 'https://example.com/image-2.png']);
+    expect(item.aspectRatio).toBe('16:9');
+    expect(item.seed).toBe(123);
+    expect(item.model).toBe('image-01');
+    expect(item.promptOptimizer).toBe(true);
     expect(item.ttlExpiry).toBe(ttl);
   });
 });

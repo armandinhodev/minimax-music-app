@@ -269,13 +269,80 @@ describe('MiniMaxSpeechClient', () => {
     })) as typeof fetch;
 
     const client = new MiniMaxSpeechClient();
-    const clonePromise = client.cloneVoice('file_123', 'voice_123');
+    const clonePromise = client.cloneVoice('123456789', 'voice_123');
 
     await expect(clonePromise).rejects.toMatchObject({
       name: 'VoiceCloneNotVerifiedError',
     });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(report).not.toHaveBeenCalled();
+  });
+
+  it('sends clone file_id as a numeric MiniMax integer', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      base_resp: { status_code: 0, status_msg: 'success' },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    const client = new MiniMaxSpeechClient();
+
+    await expect(client.cloneVoice('425012339806434', 'maricel0001')).resolves.toMatchObject({
+      voiceId: 'maricel0001',
+      type: 'clone',
+    });
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      file_id: 425012339806434,
+      voice_id: 'maricel0001',
+    });
+  });
+
+  it('sends optional clone prompt and preview fields with MiniMax voice_clone names', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      base_resp: { status_code: 0, status_msg: 'success' },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    const client = new MiniMaxSpeechClient();
+
+    await client.cloneVoice('425012339806434', 'maricel0001', {
+      optionalClonePrompt: {
+        promptAudio: '425012339806435',
+        promptText: 'This voice sounds natural and pleasant.',
+      },
+      optionalPreviewText: 'A gentle breeze sweeps across the grass.',
+      optionalModel: 'speech-2.8-hd',
+    });
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      file_id: 425012339806434,
+      voice_id: 'maricel0001',
+      clone_prompt: {
+        prompt_audio: 425012339806435,
+        prompt_text: 'This voice sounds natural and pleasant.',
+      },
+      text: 'A gentle breeze sweeps across the grass.',
+      model: 'speech-2.8-hd',
+    });
+  });
+
+  it('rejects non-numeric clone file IDs before calling MiniMax', async () => {
+    global.fetch = vi.fn() as typeof fetch;
+
+    const client = new MiniMaxSpeechClient();
+
+    await expect(client.cloneVoice('file_123', 'maricel0001')).rejects.toMatchObject({
+      name: 'MiniMaxSpeechError',
+      status: 400,
+      message: 'file_id must be a positive numeric MiniMax file ID',
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('retries stream initial fetch failures and emits upstream_retry telemetry', async () => {

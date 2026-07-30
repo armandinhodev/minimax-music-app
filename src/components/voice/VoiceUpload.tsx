@@ -266,12 +266,12 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
       {/* Drop zone */}
       <Box
         border="2px dashed"
-        borderColor={isDragging ? '#111827' : '#9ca3af'}
+        borderColor={isDragging ? '#16a34a' : '#86efac'}
         borderRadius="lg"
         p={6}
         textAlign="center"
         transition="border-color 0.2s"
-        bg={isDragging ? 'rgba(17, 24, 39, 0.05)' : 'transparent'}
+        bg={isDragging ? 'green.50' : 'white'}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -291,7 +291,7 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
               Drag and drop an audio file, or{' '}
               <button
                 type="button"
-                style={{ color: '#111827', textDecorationLine: 'underline', textUnderlineOffset: '4px', cursor: 'pointer' }}
+                style={{ color: '#166534', textDecorationLine: 'underline', textUnderlineOffset: '4px', cursor: 'pointer', fontWeight: 500 }}
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isValidatingDuration}
               >
@@ -362,6 +362,7 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
         <Box display="flex" gap={2}>
           <Button
             variant="outline"
+            colorPalette="blue"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isUploading || isValidatingDuration}
@@ -370,6 +371,7 @@ export function VoiceUpload({ onFileSelected, onUploadComplete, disabled = false
           </Button>
           <Button
             size="sm"
+            colorPalette="green"
             onClick={() => uploadFile(file)}
             disabled={disabled || isUploading || isValidatingDuration || !!uploadedFileId}
           >

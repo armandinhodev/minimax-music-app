@@ -50,6 +50,7 @@ export function VoiceDesigner({
     null
   );
   const [savedVoice, setSavedVoice] = useState<VoiceDTO | null>(null);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
 
   const handleDesign = async () => {
     if (!prompt.trim()) {
@@ -62,6 +63,7 @@ export function VoiceDesigner({
     }
 
     setError(null);
+    setActionStatus(null);
     setIsLoading(true);
 
     try {
@@ -79,6 +81,7 @@ export function VoiceDesigner({
 
       const data = await response.json();
       setPreviewResult(data);
+      setActionStatus('Voice preview generated. Listen to it, then accept to save the designed voice.');
     } catch {
       setError({ code: null, message: 'Failed to design voice. Check your connection.' });
     } finally {
@@ -96,6 +99,7 @@ export function VoiceDesigner({
         voiceId: voice.voiceId,
         ttlExpiry: voice.ttlExpiry ?? Date.now() + DESIGN_TTL_MS,
       });
+      setActionStatus('Designed voice saved to Library and ready for Text to Speech.');
       if (onAccept) {
         onAccept(voice);
       }
@@ -116,7 +120,7 @@ export function VoiceDesigner({
   return (
     <Box display="grid" gap={6}>
       {/* Prompt */}
-      <Card>
+      <Card accent="teal">
         <CardHeader>
           <CardTitle>Voice Prompt</CardTitle>
           <CardDescription>
@@ -175,10 +179,16 @@ export function VoiceDesigner({
           </Box>
 
           {error && <ErrorDisplay code={error.code} message={error.message} />}
+          {actionStatus && !error && (
+            <Box border="1px solid" borderColor="green.100" borderLeft="3px solid" borderLeftColor="green.400" borderRadius="md" bg="white" p="0.75rem" color="green.800" fontSize="sm">
+              {actionStatus}
+            </Box>
+          )}
 
           <Button
             onClick={handleDesign}
             disabled={isLoading || !!previewResult || !!savedVoice}
+            colorPalette="green"
           >
             {isLoading ? 'Designing...' : 'Design Voice'}
           </Button>
@@ -187,7 +197,7 @@ export function VoiceDesigner({
 
       {/* Preview Player */}
       {previewResult && (
-        <Card>
+        <Card accent="blue">
           <CardHeader>
             <CardTitle>Voice Preview</CardTitle>
             <CardDescription>
@@ -217,10 +227,10 @@ export function VoiceDesigner({
             )}
 
             <Box display="flex" gap={2}>
-              <Button onClick={handleAccept} disabled={isLoading}>
+              <Button onClick={handleAccept} disabled={isLoading} colorPalette="green">
                 Accept & Save
               </Button>
-              <Button variant="outline" onClick={handleRegenerate} disabled={isLoading}>
+              <Button variant="outline" colorPalette="blue" onClick={handleRegenerate} disabled={isLoading}>
                 Regenerate
               </Button>
             </Box>
@@ -230,12 +240,12 @@ export function VoiceDesigner({
 
       {/* Saved Voice */}
       {savedVoice && (
-        <Card>
+        <Card accent="green">
           <CardHeader>
             <CardTitle>Voice Saved</CardTitle>
             <CardDescription>
               Your designed voice is ready. Use voice ID{' '}
-              <code style={{ fontSize: '0.75rem', backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{savedVoice.voiceId}</code> in Text to Speech.
+              <code style={{ fontSize: '0.75rem', backgroundColor: '#f3f4f6', padding: '0 0.25rem', borderRadius: '0.25rem' }}>{savedVoice.voiceId}</code> in Text to Speech. Fresh designed voices may appear there before the MiniMax voice list refreshes.
             </CardDescription>
           </CardHeader>
           <CardContent display="grid" gap={4}>

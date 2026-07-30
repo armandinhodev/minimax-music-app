@@ -12,6 +12,7 @@ function Textarea({ className, ...props }: React.ComponentProps<typeof ChakraTex
       borderRadius="lg"
       border="1px solid"
       borderColor="gray.300"
+      bg="white"
       fontSize="base"
       _focus={{
         borderColor: "blue.500",
@@ -19,7 +20,7 @@ function Textarea({ className, ...props }: React.ComponentProps<typeof ChakraTex
         outline: "none",
       }}
       _placeholder={{ color: "gray.500" }}
-      _disabled={{ opacity: 0.5, cursor: "not-allowed" }}
+      _disabled={{ opacity: 0.5, cursor: "not-allowed", bg: "white" }}
       {...props}
     />
   );

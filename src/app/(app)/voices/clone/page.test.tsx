@@ -23,7 +23,11 @@ vi.mock('@/components/voice/VoiceUpload', () => ({
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
+  Button: ({ children, colorPalette, loading, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { colorPalette?: string; loading?: boolean }) => {
+    void colorPalette;
+    void loading;
+    return <button {...props}>{children}</button>;
+  },
 }));
 
 vi.mock('@/components/ui/input', () => ({
@@ -54,9 +58,7 @@ vi.mock('@chakra-ui/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@chakra-ui/react')>();
   return {
     ...actual,
-    Box: ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => (
-      <div {...props}>{children}</div>
-    ),
+    Box: ({ children }: { children?: ReactNode } & Record<string, unknown>) => <div>{children}</div>,
   };
 });
 

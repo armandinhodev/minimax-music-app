@@ -1,7 +1,7 @@
 "use client";
 
 function Badge({ variant = "subtle", children, className, onClick, style }: {
-  variant?: "solid" | "subtle" | "outline" | "secondary" | "destructive" | "default";
+  variant?: "solid" | "subtle" | "outline" | "secondary" | "destructive" | "default" | "success" | "info" | "warning" | "purple";
   children?: React.ReactNode;
   className?: string;
   onClick?: () => void;
@@ -16,6 +16,10 @@ function Badge({ variant = "subtle", children, className, onClick, style }: {
     outline: { border: "1px solid #d1d5db" },
     secondary: { background: "#f3f4f6", color: "#374151" },
     destructive: { background: "#fee2e2", color: "#991b1b" },
+    success: { background: "#dcfce7", color: "#166534" },
+    info: { background: "#dbeafe", color: "#1e40af" },
+    warning: { background: "#ffedd5", color: "#9a3412" },
+    purple: { background: "#f3e8ff", color: "#6b21a8" },
   };
 
   return (

@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { authFetch, parseApiError } from '@/lib/auth-client';
 import { ErrorDisplay } from '@/components/shared/ErrorDisplay';
@@ -18,6 +20,7 @@ import Link from 'next/link';
 import { VoiceCard } from '@/components/voice/VoiceCard';
 import { VoiceGroupSection } from '@/components/voice/VoiceGroupSection';
 import { getLanguageInfo } from '@/lib/language-flags';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 
 export default function VoicesPage() {
   const [systemVoices, setSystemVoices] = useState<VoiceDTO[]>([]);
@@ -26,10 +29,13 @@ export default function VoicesPage() {
   const [error, setError] = useState<{ code: number | null; message: string | null } | null>(null);
   const [filter, setFilter] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteVoice, setPendingDeleteVoice] = useState<VoiceDTO | null>(null);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
 
   const loadVoices = async () => {
     setIsLoading(true);
     setError(null);
+    setActionStatus(null);
 
     try {
       const response = await authFetch('/api/minimax/voices');
@@ -56,9 +62,10 @@ export default function VoicesPage() {
     loadVoices();
   }, []);
 
-  const handleDelete = async (voice: VoiceDTO) => {
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteVoice) return;
+    const voice = pendingDeleteVoice;
     const { voiceId } = voice;
-    if (!confirm(`Delete voice ${voiceId}? This cannot be undone.`)) return;
 
     setDeletingId(voiceId);
     try {
@@ -76,6 +83,8 @@ export default function VoicesPage() {
 
       // Remove from user voices list
       setUserVoices((prev) => prev.filter((v) => v.voiceId !== voiceId));
+      setActionStatus('Voice deleted from My Voices.');
+      setPendingDeleteVoice(null);
     } catch {
       setError({ code: null, message: 'Failed to delete voice.' });
     } finally {
@@ -83,15 +92,17 @@ export default function VoicesPage() {
     }
   };
 
-  const filterVoices = (voices: VoiceDTO[]) => {
-    if (!filter.trim()) return voices;
-    const q = filter.toLowerCase();
-    return voices.filter(
-      (v) =>
-        v.name.toLowerCase().includes(q) ||
-        v.voiceId.toLowerCase().includes(q) ||
-        (v.language ?? '').toLowerCase().includes(q)    );
-  };
+  const normalizedFilter = filter.trim().toLowerCase();
+
+  const filteredUserVoices = useMemo(() => {
+    if (!normalizedFilter) return userVoices;
+    return userVoices.filter(
+      (voice) =>
+        voice.name.toLowerCase().includes(normalizedFilter) ||
+        voice.voiceId.toLowerCase().includes(normalizedFilter) ||
+        (voice.language ?? '').toLowerCase().includes(normalizedFilter)
+    );
+  }, [userVoices, normalizedFilter]);
 
   const groupedSystemVoices = useMemo(() => {
     const groups = new Map<string, VoiceDTO[]>();
@@ -104,10 +115,20 @@ export default function VoicesPage() {
       .sort((a, b) => b.voices.length - a.voices.length || a.displayName.localeCompare(b.displayName));
   }, [systemVoices]);
 
-  const filteredSystemGroups = groupedSystemVoices.map((group) => ({
-    ...group,
-    voices: filterVoices(group.voices),
-  }));
+  const filteredSystemGroups = useMemo(
+    () => groupedSystemVoices.map((group) => ({
+      ...group,
+      voices: normalizedFilter
+        ? group.voices.filter(
+          (voice) =>
+            voice.name.toLowerCase().includes(normalizedFilter) ||
+            voice.voiceId.toLowerCase().includes(normalizedFilter) ||
+            (voice.language ?? '').toLowerCase().includes(normalizedFilter)
+        )
+        : group.voices,
+    })),
+    [groupedSystemVoices, normalizedFilter]
+  );
 
   const hasFilteredSystemVoices = filteredSystemGroups.some((group) => group.voices.length > 0);
 
@@ -120,17 +141,22 @@ export default function VoicesPage() {
             Browse system voices or manage your cloned and designed voices.
           </Box>
         </Box>
-        <Button variant="outline" onClick={loadVoices} disabled={isLoading}>
+        <Button variant="outline" colorPalette="blue" onClick={loadVoices} disabled={isLoading}>
           {isLoading ? 'Loading...' : 'Refresh'}
         </Button>
       </Box>
 
       {error && <ErrorDisplay code={error.code} message={error.message} />}
+      {actionStatus && !error && (
+        <Box border="1px solid" borderColor="green.100" borderLeft="3px solid" borderLeftColor="green.400" borderRadius="md" bg="white" p="0.75rem" color="green.800" fontSize="sm">
+          {actionStatus}
+        </Box>
+      )}
 
       <Tabs defaultValue="system">
         <TabsList>
           <TabsTrigger value="system">System Voices</TabsTrigger>
-          <TabsTrigger value="user">My Voices</TabsTrigger>
+          <TabsTrigger value="user">My Voices ({userVoices.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="system">
@@ -159,6 +185,9 @@ export default function VoicesPage() {
 
         <TabsContent value="user">
           <Box mt={4}>
+            <Box mb={4} border="1px solid" borderColor="green.100" borderLeft="3px solid" borderLeftColor="green.400" borderRadius="md" bg="white" p="0.75rem" color="gray.700" fontSize="sm">
+              My Voices contains cloned and designed voices you created. Fresh voices may appear here after refresh, and they are available in Text to Speech from local history while MiniMax updates its voice list.
+            </Box>
             <Box mb={4} display="flex" alignItems="center" justifyContent="space-between">
               <Box maxW="20rem">
                 <Input
@@ -170,38 +199,60 @@ export default function VoicesPage() {
               <Box display="flex" gap={2}>
                 <Link
                   href="/voices/clone"
-                  style={{ display: 'inline-flex', height: '1.75rem', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', backgroundColor: 'white', padding: '0 0.75rem', fontSize: '0.875rem' }}
+                  style={{ display: 'inline-flex', height: '1.75rem', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', borderRadius: '0.375rem', border: '1px solid #86efac', backgroundColor: 'white', padding: '0 0.75rem', fontSize: '0.875rem', color: '#166534', fontWeight: 500 }}
                 >
                   Clone a Voice
                 </Link>
                 <Link
                   href="/voices/design"
-                  style={{ display: 'inline-flex', height: '1.75rem', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', backgroundColor: 'white', padding: '0 0.75rem', fontSize: '0.875rem' }}
+                  style={{ display: 'inline-flex', height: '1.75rem', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', borderRadius: '0.375rem', border: '1px solid #5eead4', backgroundColor: 'white', padding: '0 0.75rem', fontSize: '0.875rem', color: '#0f766e', fontWeight: 500 }}
                 >
                   Design a Voice
                 </Link>
               </Box>
             </Box>
+            {userVoices.length > 0 && (
+              <Box display="flex" gap={2} flexWrap="wrap" mb={4}>
+                <Badge variant="success">My Voices</Badge>
+                <Badge variant="purple">Cloned</Badge>
+                <Badge variant="info">Designed</Badge>
+              </Box>
+            )}
             <Box display="grid" gap={4} gridTemplateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }}>
-              {filterVoices(userVoices).map((voice) => (
+              {filteredUserVoices.map((voice) => (
                 <VoiceCard
                   key={voice.voiceId}
                   voice={voice}
-                  onDelete={handleDelete}
+                  onDelete={setPendingDeleteVoice}
                   isDeleting={deletingId === voice.voiceId}
                 />
               ))}
-              {filterVoices(userVoices).length === 0 && (
-                <p style={{ color: '#6b7280', gridColumn: '1 / -1', fontSize: '0.875rem' }}>
-                  {filter
-                    ? 'No matching voices.'
-                    : 'You have no cloned or designed voices yet. Clone or design one to get started.'}
-                </p>
+              {filteredUserVoices.length === 0 && (
+                <Card accent="green" style={{ gridColumn: '1 / -1' }}>
+                  <CardHeader>
+                    <CardTitle>{filter ? 'No matching My Voices' : 'No custom voices yet'}</CardTitle>
+                    <CardDescription>
+                      {filter
+                        ? 'Clear the filter to see all cloned and designed voices.'
+                        : 'Clone a voice from an audio sample or design one from a prompt, then use it in Text to Speech.'}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
               )}
             </Box>
           </Box>
         </TabsContent>
       </Tabs>
+
+      <ConfirmationDialog
+        open={pendingDeleteVoice !== null}
+        onOpenChange={(open) => !open && setPendingDeleteVoice(null)}
+        title="Delete voice?"
+        description={`Delete ${pendingDeleteVoice?.voiceId ?? 'this voice'} from MiniMax? This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDelete}
+        loading={deletingId !== null}
+      />
     </Box>
   );
 }

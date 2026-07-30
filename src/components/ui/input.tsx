@@ -11,6 +11,7 @@ function Input({ className, ...props }: React.ComponentProps<typeof ChakraInput>
       borderRadius="lg"
       border="1px solid"
       borderColor="gray.300"
+      bg="white"
       fontSize="sm"
       _focus={{
         borderColor: "blue.500",
@@ -18,7 +19,7 @@ function Input({ className, ...props }: React.ComponentProps<typeof ChakraInput>
         outline: "none",
       }}
       _placeholder={{ color: "gray.500" }}
-      _disabled={{ opacity: 0.5, cursor: "not-allowed" }}
+      _disabled={{ opacity: 0.5, cursor: "not-allowed", bg: "white" }}
       {...props}
     />
   );

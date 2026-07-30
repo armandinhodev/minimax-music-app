@@ -6,18 +6,22 @@ const cardPadding = "1rem";
 
 interface CardProps extends BoxProps {
   size?: "default" | "sm";
+  accent?: "gray" | "green" | "blue" | "purple" | "teal" | "orange" | "red";
 }
 
-function Card({ size = "default", ...props }: CardProps) {
+function Card({ size = "default", accent = "gray", bg, borderColor, ...props }: CardProps) {
   const padding = size === "sm" ? "0.75rem" : cardPadding;
+  const accentBorderColor = accent === "gray" ? "gray.200" : `${accent}.300`;
   return (
     <Box
-      bg="white"
+      bg={bg ?? "white"}
       borderRadius="xl"
       p={padding}
       boxShadow="sm"
       border="1px solid"
-      borderColor="gray.200"
+      borderColor={borderColor ?? (accent === "gray" ? "gray.200" : `${accent}.100`)}
+      borderLeft="4px solid"
+      borderLeftColor={accentBorderColor}
       {...props}
     />
   );

@@ -23,12 +23,23 @@ interface VoiceCardProps {
 }
 
 function VoiceTypeBadge({ type }: { type: VoiceDTO['type'] }) {
-  const variants: Record<VoiceDTO['type'], 'default' | 'secondary' | 'outline'> = {
-    system: 'default',
-    clone: 'secondary',
-    design: 'outline',
+  const variants: Record<VoiceDTO['type'], 'info' | 'purple' | 'success'> = {
+    system: 'info',
+    clone: 'purple',
+    design: 'success',
   };
-  return <Badge variant={variants[type]}>{type}</Badge>;
+  const labels: Record<VoiceDTO['type'], string> = {
+    system: 'System',
+    clone: 'Cloned',
+    design: 'Designed',
+  };
+  return <Badge variant={variants[type]}>{labels[type]}</Badge>;
+}
+
+function getVoiceAccent(type: VoiceDTO['type']): 'blue' | 'purple' | 'teal' {
+  if (type === 'clone') return 'purple';
+  if (type === 'design') return 'teal';
+  return 'blue';
 }
 
 export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceCardProps) {
@@ -38,7 +49,7 @@ export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceC
   const [imgFailed, setImgFailed] = useState(false);
 
   return (
-    <Card>
+    <Card accent={getVoiceAccent(voice.type)}>
       <CardHeader>
         <Box display="flex" alignItems="flex-start" justifyContent="space-between">
           <Box minW={0} flex={1}>
@@ -72,6 +83,9 @@ export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceC
       </CardHeader>
       <CardContent display="flex" flexDirection="column" gap={2}>
         <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+          <Badge variant={voice.type === 'system' ? 'secondary' : 'success'}>
+            {voice.type === 'system' ? 'System voice' : 'My voice'}
+          </Badge>
           <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Created {createdDate}</span>
           {voice.ttlExpiry && <TTLCounter expiresAt={voice.ttlExpiry} label="TTL" />}
         </Box>
@@ -79,6 +93,7 @@ export function VoiceCard({ voice, onUse, onDelete, isDeleting = false }: VoiceC
           {onUse && (
             <Button
               variant="outline"
+              colorPalette="green"
               size="sm"
               onClick={() => onUse(voice.voiceId)}
               disabled={isDeleting}

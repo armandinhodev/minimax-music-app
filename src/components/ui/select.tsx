@@ -14,7 +14,7 @@
  * descending and then label ascending.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Box,
   Combobox,
@@ -188,7 +188,7 @@ function BaseSelect({
     >
       <ChakraSelect.HiddenSelect />
       <ChakraSelect.Control>
-        <ChakraSelect.Trigger>
+        <ChakraSelect.Trigger bg="white">
           <ChakraSelect.ValueText placeholder={placeholder}>
             {selectedOption ? (
               <Box display="inline-flex" alignItems="center" gap={2}>
@@ -204,7 +204,7 @@ function BaseSelect({
       </ChakraSelect.Control>
       <Portal>
         <ChakraSelect.Positioner>
-          <ChakraSelect.Content maxH="20rem">
+          <ChakraSelect.Content maxH="20rem" bg="white">
             {groupedOptions.map(({ key, options: groupItems }) =>
               key === undefined ? (
                 groupItems.map((option) => <BaseItem key={option.value} option={option} />)
@@ -315,14 +315,14 @@ function SearchableSelect({
       id={id}
     >
       <Combobox.Control>
-        <Combobox.Input placeholder={placeholder} />
+        <Combobox.Input placeholder={placeholder} bg="white" />
         <Combobox.IndicatorGroup>
           <Combobox.Trigger />
         </Combobox.IndicatorGroup>
       </Combobox.Control>
       <Portal>
         <Combobox.Positioner>
-          <Combobox.Content maxH="20rem">
+          <Combobox.Content maxH="20rem" bg="white">
             {groupedOptions.map(({ key, options: groupItems }) =>
               key === undefined ? (
                 groupItems.map((option) => <SearchableItem key={option.value} option={option} />)
@@ -338,6 +338,6 @@ function SearchableSelect({
   );
 }
 
-export function Select({ searchable = false, ...props }: SelectProps) {
+export const Select = memo(function Select({ searchable = false, ...props }: SelectProps) {
   return searchable ? <SearchableSelect {...props} /> : <BaseSelect {...props} />;
-}
+});

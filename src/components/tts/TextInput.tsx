@@ -6,6 +6,7 @@
  */
 
 import { Box } from '@chakra-ui/react';
+import { memo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,7 @@ interface TextInputProps {
 const MAX_CHARS = 10000;
 const WARN_CHARS = 9000;
 
-export function TextInput({
+export const TextInput = memo(function TextInput({
   value,
   onChange,
   placeholder = 'Enter text to synthesize (up to 10,000 characters)...',
@@ -56,4 +57,4 @@ export function TextInput({
       />
     </Box>
   );
-}
+});

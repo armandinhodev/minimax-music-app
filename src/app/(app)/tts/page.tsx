@@ -5,7 +5,7 @@
  * UI: text input, voice selector, format/speed/pitch controls, generate button, copy/download.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ import { VoiceSelector } from '@/components/tts/VoiceSelector';
 import { AudioPlayer } from '@/components/tts/AudioPlayer';
 import { StreamingPlayer } from '@/components/tts/StreamingPlayer';
 import { saveHistoryItem } from '@/lib/history';
+import { storeAudioFromHex } from '@/lib/audio-storage';
 import { DEFAULT_T2A_FORMAT, DEFAULT_T2A_MODEL } from '@/domain/value-objects/T2APolicy';
 
 const MODEL_OPTIONS: SelectOption[] = [
@@ -35,8 +36,10 @@ const FORMAT_OPTIONS: SelectOption[] = [
 ];
 
 export default function TTSPage() {
-  const [text, setText] = useState('');
-  const [voiceId, setVoiceId] = useState('');
+  const [generateText, setGenerateText] = useState('');
+  const [generateVoiceId, setGenerateVoiceId] = useState('');
+  const [streamingText, setStreamingText] = useState('');
+  const [streamingVoiceId, setStreamingVoiceId] = useState('');
   const [model, setModel] = useState(DEFAULT_T2A_MODEL);
   const [format, setFormat] = useState(DEFAULT_T2A_FORMAT);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,22 +47,32 @@ export default function TTSPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioHex, setAudioHex] = useState<string | null>(null);
   const [streamingEnabled, setStreamingEnabled] = useState(false);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+
+  const handleModelChange = useCallback((value: string) => {
+    setModel(value as typeof model);
+  }, []);
+
+  const handleFormatChange = useCallback((value: string) => {
+    setFormat(value as typeof format);
+  }, []);
 
   const handleGenerate = async () => {
-    if (!text.trim()) {
+    if (!generateText.trim()) {
       setError({ code: null, message: 'Please enter some text.' });
       return;
     }
-    if (text.length > 10000) {
+    if (generateText.length > 10000) {
       setError({ code: null, message: 'Text exceeds 10,000 characters.' });
       return;
     }
-    if (!voiceId.trim()) {
+    if (!generateVoiceId.trim()) {
       setError({ code: null, message: 'Please select a voice.' });
       return;
     }
 
     setError(null);
+    setActionStatus(null);
     setIsLoading(true);
     setAudioUrl(null);
     setAudioHex(null);
@@ -68,7 +81,7 @@ export default function TTSPage() {
       const response = await authFetch('/api/minimax/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voiceId, model, format }),
+        body: JSON.stringify({ text: generateText, voiceId: generateVoiceId, model, format }),
       });
 
       if (!response.ok) {
@@ -81,10 +94,22 @@ export default function TTSPage() {
 
       if (data.audioUrl) {
         setAudioUrl(data.audioUrl);
-        saveHistoryItem({ type: 'tts', text, voiceId, audioUrl: data.audioUrl });
+        saveHistoryItem({ type: 'tts', text: generateText, voiceId: generateVoiceId, audioUrl: data.audioUrl, format });
+        setActionStatus('Audio generated and saved to Library as a temporary URL. Download it soon because provider URLs can expire.');
       } else if (data.audio) {
         setAudioHex(data.audio);
-        saveHistoryItem({ type: 'tts', text, voiceId });
+        let audioStorageKey: string | undefined;
+        try {
+          audioStorageKey = await storeAudioFromHex(data.audio, format);
+        } catch {
+          audioStorageKey = undefined;
+        }
+        saveHistoryItem({ type: 'tts', text: generateText, voiceId: generateVoiceId, audioStorageKey, format });
+        setActionStatus(
+          audioStorageKey
+            ? 'Audio generated, stored locally in this browser, and saved to Library.'
+            : 'Audio generated for preview, but browser storage was unavailable. This Library item may not be downloadable after refresh.'
+        );
       }
     } catch {
       setError({ code: null, message: 'Failed to generate audio. Check your connection.' });
@@ -98,22 +123,25 @@ export default function TTSPage() {
       <Box>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 700 }}>Text to Speech</h1>
         <Box color="gray.600" mt={1}>
-          Convert text to natural-sounding audio using MiniMax TTS.
+          Convert text to natural-sounding audio using MiniMax TTS. Generate Audio creates a reusable Library item; Streaming TTS is immediate playback only.
         </Box>
       </Box>
 
-      <Card>
+      <Card accent="green">
         <CardHeader>
           <CardTitle>Generate Audio</CardTitle>
           <CardDescription>
-            Enter your text, choose a voice, and generate audio.
+            Creates audio you can download now and find later in Library when local storage or a temporary URL is available.
           </CardDescription>
         </CardHeader>
         <CardContent display="grid" gap={4}>
+          <Box border="1px solid" borderColor="green.100" borderLeft="3px solid" borderLeftColor="green.400" borderRadius="md" bg="white" p="0.75rem" color="gray.700" fontSize="sm">
+            Best for finished clips, exports, and anything you want to keep in your browser Library.
+          </Box>
           {/* Text Input — Phase 6 component */}
           <TextInput
-            value={text}
-            onChange={setText}
+            value={generateText}
+            onChange={setGenerateText}
             id="tts-text"
             label="Text"
             disabled={isLoading}
@@ -121,8 +149,8 @@ export default function TTSPage() {
 
           {/* Voice Selector — Phase 6 component */}
           <VoiceSelector
-            value={voiceId}
-            onChange={setVoiceId}
+            value={generateVoiceId}
+            onChange={setGenerateVoiceId}
             label="Voice"
             disabled={isLoading}
           />
@@ -133,7 +161,7 @@ export default function TTSPage() {
               <Label>Model</Label>
               <Select
                 value={model}
-                onValueChange={(v) => v && setModel(v as typeof model)}
+                onValueChange={handleModelChange}
                 options={MODEL_OPTIONS}
               />
             </Box>
@@ -141,21 +169,27 @@ export default function TTSPage() {
               <Label>Format</Label>
               <Select
                 value={format}
-                onValueChange={(v) => v && setFormat(v as typeof format)}
+                onValueChange={handleFormatChange}
                 options={FORMAT_OPTIONS}
               />
             </Box>
           </Box>
 
           {error && <ErrorDisplay code={error.code ?? null} message={error.message ?? ''} />}
+          {actionStatus && !error && (
+            <Box border="1px solid" borderColor="green.100" borderLeft="3px solid" borderLeftColor="green.400" borderRadius="md" bg="white" p="0.75rem" color="green.800" fontSize="sm">
+              {actionStatus}
+            </Box>
+          )}
 
           <Box display="flex" gap={2}>
-            <Button onClick={handleGenerate} disabled={isLoading}>
+            <Button onClick={handleGenerate} disabled={isLoading} colorPalette="green">
               {isLoading ? 'Generating...' : 'Generate'}
             </Button>
             {audioUrl && (
               <Button
                 variant="outline"
+                colorPalette="blue"
                 onClick={() => window.open(audioUrl, '_blank')}
               >
                 Download
@@ -174,19 +208,23 @@ export default function TTSPage() {
       </Card>
 
       {/* Streaming TTS — Phase 6 StreamingPlayer component */}
-      <Card>
+      <Card accent="teal">
         <CardHeader>
           <CardTitle>Streaming TTS</CardTitle>
           <CardDescription>
-            Stream audio in real-time as it is generated.
+            Plays audio immediately while it is generated. Streaming playback is not saved to Library.
           </CardDescription>
         </CardHeader>
         <CardContent display="grid" gap={4}>
+          <Box border="1px solid" borderColor="teal.100" borderLeft="3px solid" borderLeftColor="teal.400" borderRadius="md" bg="white" p="0.75rem" color="gray.700" fontSize="sm">
+            Best for fast previews and live playback. Use Generate Audio when you need a downloadable Library item.
+          </Box>
           <Box display="flex" alignItems="center" gap={2}>
             <Label htmlFor="streaming-toggle" style={{ fontSize: '0.875rem' }}>Enable Streaming</Label>
             <Button
               id="streaming-toggle"
               variant={streamingEnabled ? 'default' : 'outline'}
+              colorPalette={streamingEnabled ? 'green' : 'gray'}
               size="sm"
               onClick={() => setStreamingEnabled((prev) => !prev)}
             >
@@ -196,21 +234,21 @@ export default function TTSPage() {
           {streamingEnabled && (
             <>
               <TextInput
-                value={text}
-                onChange={setText}
+                value={streamingText}
+                onChange={setStreamingText}
                 id="stream-text"
                 label="Streaming Text"
                 disabled={isLoading}
               />
               <VoiceSelector
-                value={voiceId}
-                onChange={setVoiceId}
+                value={streamingVoiceId}
+                onChange={setStreamingVoiceId}
                 label="Streaming Voice"
                 disabled={isLoading}
               />
               <StreamingPlayer
-                text={text}
-                voiceId={voiceId}
+                text={streamingText}
+                voiceId={streamingVoiceId}
                 model={model}
                 enabled={streamingEnabled}
               />

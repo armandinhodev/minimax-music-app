@@ -15,6 +15,7 @@ import {
   DeleteVoiceSchema,
   GetFileSchema,
   DeleteFileSchema,
+  GenerateImageRequestSchema,
 } from '@/lib/validators';
 
 describe('T2ARequestSchema', () => {
@@ -116,6 +117,92 @@ describe('AsyncT2ASubmitSchema', () => {
       voiceId: 'sys_male_english_1',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('GenerateImageRequestSchema', () => {
+  const referenceImageDataUrl = `data:image/jpeg;base64,${Buffer.from('portrait').toString('base64')}`;
+
+  it('accepts a minimal image generation request with safe defaults', () => {
+    const result = GenerateImageRequestSchema.safeParse({
+      prompt: 'A premium product photo of a green glass speaker on marble.',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBe('image-01');
+      expect(result.data.aspectRatio).toBe('1:1');
+      expect(result.data.responseFormat).toBe('url');
+      expect(result.data.n).toBe(1);
+      expect(result.data.promptOptimizer).toBe(false);
+    }
+  });
+
+  it('accepts documented aspect ratios and image count bounds', () => {
+    const result = GenerateImageRequestSchema.safeParse({
+      prompt: 'A cinematic landscape with soft sunrise lighting.',
+      aspectRatio: '21:9',
+      n: 9,
+      seed: 12345,
+      promptOptimizer: true,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a MiniMax image-to-image subject reference Data URL', () => {
+    const result = GenerateImageRequestSchema.safeParse({
+      prompt: 'Create an editorial portrait with soft studio lighting.',
+      subjectReference: [{ type: 'character', imageFile: referenceImageDataUrl }],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.subjectReference).toEqual([{ type: 'character', imageFile: referenceImageDataUrl }]);
+    }
+  });
+
+  it('rejects invalid image-to-image reference inputs', () => {
+    expect(GenerateImageRequestSchema.safeParse({
+      prompt: 'test',
+      subjectReference: [{ type: 'character', imageFile: 'https://example.com/portrait.jpg' }],
+    }).success).toBe(false);
+    expect(GenerateImageRequestSchema.safeParse({
+      prompt: 'test',
+      subjectReference: [{ type: 'character', imageFile: `data:image/gif;base64,${Buffer.from('portrait').toString('base64')}` }],
+    }).success).toBe(false);
+    expect(GenerateImageRequestSchema.safeParse({
+      prompt: 'test',
+      subjectReference: [{ type: 'product', imageFile: referenceImageDataUrl }],
+    }).success).toBe(false);
+    expect(GenerateImageRequestSchema.safeParse({
+      prompt: 'test',
+      subjectReference: [{ type: 'character', imageFile: `data:image/png;base64,${'a'.repeat(13_981_016)}` }],
+    }).success).toBe(false);
+  });
+
+
+  it('rejects prompts exceeding 1,500 characters', () => {
+    const result = GenerateImageRequestSchema.safeParse({
+      prompt: 'a'.repeat(1501),
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unsupported base64 output because the app stores URL Library items', () => {
+    const result = GenerateImageRequestSchema.safeParse({
+      prompt: 'A premium product photo.',
+      responseFormat: 'base64',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('requires width and height together and divisible by 8', () => {
+    expect(GenerateImageRequestSchema.safeParse({ prompt: 'test', width: 1024 }).success).toBe(false);
+    expect(GenerateImageRequestSchema.safeParse({ prompt: 'test', width: 1025, height: 1024 }).success).toBe(false);
+    expect(GenerateImageRequestSchema.safeParse({ prompt: 'test', width: 1024, height: 1024 }).success).toBe(true);
   });
 });
 

@@ -1,19 +1,28 @@
 /**
  * history.ts — localStorage utilities for non-secret task metadata.
- * Stores: { id, type, voiceId?, text?, fileId?, taskId?, audioUrl?, createdAt, ttlExpiry? }
+ * Stores metadata only: { id, type, source?, voiceId?, text?, fileId?, taskId?, audioUrl?, audioStorageKey?, imageUrls?, format?, aspectRatio?, seed?, model?, promptOptimizer?, createdAt, ttlExpiry? }
  * NEVER stores secrets (API keys, tokens, etc.)
  */
 
-export type HistoryType = 'tts' | 'clone' | 'design';
+export type HistoryType = 'tts' | 'clone' | 'design' | 'image';
+export type HistorySource = 'text-to-image' | 'image-to-image';
 
 export interface HistoryItem {
   id: string;
   type: HistoryType;
+  source?: HistorySource;
   voiceId?: string;
   text?: string;
   fileId?: string;
   taskId?: string;
   audioUrl?: string;
+  audioStorageKey?: string;
+  imageUrls?: string[];
+  format?: string;
+  aspectRatio?: string;
+  seed?: number;
+  model?: string;
+  promptOptimizer?: boolean;
   createdAt: number; // Unix timestamp ms
   ttlExpiry?: number; // Unix timestamp ms — for voices and download URLs
 }
@@ -58,10 +67,25 @@ export function saveHistoryItem(
   item: Omit<HistoryItem, 'id' | 'createdAt'>
 ): HistoryItem {
   const newItem: HistoryItem = {
-    ...item,
     id: generateId(),
+    type: item.type,
     createdAt: Date.now(),
   };
+
+  if (item.voiceId !== undefined) newItem.voiceId = item.voiceId;
+  if (item.source !== undefined) newItem.source = item.source;
+  if (item.text !== undefined) newItem.text = item.text;
+  if (item.fileId !== undefined) newItem.fileId = item.fileId;
+  if (item.taskId !== undefined) newItem.taskId = item.taskId;
+  if (item.audioUrl !== undefined) newItem.audioUrl = item.audioUrl;
+  if (item.audioStorageKey !== undefined) newItem.audioStorageKey = item.audioStorageKey;
+  if (item.imageUrls !== undefined) newItem.imageUrls = item.imageUrls;
+  if (item.format !== undefined) newItem.format = item.format;
+  if (item.aspectRatio !== undefined) newItem.aspectRatio = item.aspectRatio;
+  if (item.seed !== undefined) newItem.seed = item.seed;
+  if (item.model !== undefined) newItem.model = item.model;
+  if (item.promptOptimizer !== undefined) newItem.promptOptimizer = item.promptOptimizer;
+  if (item.ttlExpiry !== undefined) newItem.ttlExpiry = item.ttlExpiry;
 
   const items = getHistoryItems();
   items.unshift(newItem); // Most recent first

@@ -159,6 +159,17 @@ function readChunkWithTimeout(reader: ReadableStreamDefaultReader<Uint8Array>) {
   });
 }
 
+function parseMiniMaxFileId(fileId: string, fieldName: string): number {
+  const trimmed = fileId.trim();
+  const numericFileId = Number(trimmed);
+
+  if (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(numericFileId) || numericFileId <= 0) {
+    throw new MiniMaxSpeechError(`${fieldName} must be a positive numeric MiniMax file ID`, 0, 400);
+  }
+
+  return numericFileId;
+}
+
 /**
  * Fetch with timeout and retry for retryable errors.
  * Preserves 429 status in normalized errors where possible.
@@ -608,14 +619,17 @@ export class MiniMaxSpeechClient {
     }
   ): Promise<Voice> {
     const url = withGroupId('/v1/voice_clone', GROUP_ID);
+    const fileId = parseMiniMaxFileId(audioFileId, 'file_id');
     const body = {
-      file_id: audioFileId,
+      file_id: fileId,
       voice_id: voiceId,
       ...(options?.optionalClonePrompt ? {
-        prompt_audio: options.optionalClonePrompt.promptAudio,
-        prompt_text: options.optionalClonePrompt.promptText,
+        clone_prompt: {
+          prompt_audio: parseMiniMaxFileId(options.optionalClonePrompt.promptAudio, 'clone_prompt.prompt_audio'),
+          prompt_text: options.optionalClonePrompt.promptText,
+        },
       } : {}),
-      ...(options?.optionalPreviewText ? { preview_text: options.optionalPreviewText } : {}),
+      ...(options?.optionalPreviewText ? { text: options.optionalPreviewText } : {}),
       ...(options?.optionalModel ? { model: options.optionalModel } : {}),
     };
 

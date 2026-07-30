@@ -66,7 +66,7 @@ export default function LoginPage() {
               <Input
                 id="access-key"
                 type="password"
-                placeholder="Enter your APP_ACCESS_KEY"
+                placeholder="Enter your app access key"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
                 autoComplete="off"

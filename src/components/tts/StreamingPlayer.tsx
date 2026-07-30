@@ -5,11 +5,10 @@
  * This avoids attempting to decode incomplete MP3 frames and avoids replacing active sources.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { memo, useEffect, useRef, useState, useCallback } from 'react';
 import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { saveHistoryItem } from '@/lib/history';
 import { DEFAULT_T2A_MODEL } from '@/domain/value-objects/T2APolicy';
 
 interface StreamingPlayerProps {
@@ -64,7 +63,7 @@ export function shouldRetryStreamFailure(error: unknown): boolean {
   return !(error instanceof NonRetryableStreamError);
 }
 
-export function StreamingPlayer({ text, voiceId, model = DEFAULT_T2A_MODEL, enabled }: StreamingPlayerProps) {
+export const StreamingPlayer = memo(function StreamingPlayer({ text, voiceId, model = DEFAULT_T2A_MODEL, enabled }: StreamingPlayerProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const chunksRef = useRef<Uint8Array[]>([]);
@@ -182,9 +181,6 @@ export function StreamingPlayer({ text, voiceId, model = DEFAULT_T2A_MODEL, enab
       }
       reconnectAttemptsRef.current = 0;
       setStreamState('done');
-      if (playedAnyAudio) {
-        saveHistoryItem({ type: 'tts', text, voiceId });
-      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') { setStreamState('idle'); return; }
       if (shouldRetryStreamFailure(err) && reconnectAttemptsRef.current < maxReconnectAttempts) {
@@ -230,4 +226,4 @@ export function StreamingPlayer({ text, voiceId, model = DEFAULT_T2A_MODEL, enab
       </Box>
     </Box>
   );
-}
+});
