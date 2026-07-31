@@ -16,6 +16,7 @@ import {
   GetFileSchema,
   DeleteFileSchema,
   GenerateImageRequestSchema,
+  GenerateMusicRequestSchema,
 } from '@/lib/validators';
 
 describe('T2ARequestSchema', () => {
@@ -203,6 +204,56 @@ describe('GenerateImageRequestSchema', () => {
     expect(GenerateImageRequestSchema.safeParse({ prompt: 'test', width: 1024 }).success).toBe(false);
     expect(GenerateImageRequestSchema.safeParse({ prompt: 'test', width: 1025, height: 1024 }).success).toBe(false);
     expect(GenerateImageRequestSchema.safeParse({ prompt: 'test', width: 1024, height: 1024 }).success).toBe(true);
+  });
+});
+
+describe('GenerateMusicRequestSchema', () => {
+  it('accepts a vocal music request with safe defaults', () => {
+    const result = GenerateMusicRequestSchema.safeParse({
+      prompt: 'Glossy synth-pop with a bright chorus.',
+      lyrics: '[Verse]\nCity lights keep moving\n[Chorus]\nWe rise again',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.model).toBe('music-3.0');
+      expect(result.data.instrumental).toBe(false);
+      expect(result.data.stream).toBe(false);
+      expect(result.data.outputFormat).toBe('hex');
+      expect(result.data.audioSetting).toEqual({ sampleRate: 44100, bitrate: 256000, format: 'mp3' });
+    }
+  });
+
+  it('accepts instrumental music when prompt is provided and lyrics are omitted', () => {
+    const result = GenerateMusicRequestSchema.safeParse({
+      instrumental: true,
+      prompt: 'Instrumental cinematic piano with soft strings.',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lyrics).toBe('');
+    }
+  });
+
+  it('rejects impossible music generation states', () => {
+    expect(GenerateMusicRequestSchema.safeParse({ instrumental: true, prompt: '' }).success).toBe(false);
+    expect(GenerateMusicRequestSchema.safeParse({ instrumental: false, lyrics: '' }).success).toBe(false);
+    expect(GenerateMusicRequestSchema.safeParse({ lyrics: 'a'.repeat(3501) }).success).toBe(false);
+    expect(GenerateMusicRequestSchema.safeParse({ instrumental: true, prompt: 'a'.repeat(2001) }).success).toBe(false);
+  });
+
+  it('rejects unsupported music output settings', () => {
+    expect(GenerateMusicRequestSchema.safeParse({
+      prompt: 'test',
+      lyrics: 'lyrics',
+      outputFormat: 'url',
+    }).success).toBe(false);
+    expect(GenerateMusicRequestSchema.safeParse({
+      prompt: 'test',
+      lyrics: 'lyrics',
+      audioSetting: { sampleRate: 48000, bitrate: 256000, format: 'mp3' },
+    }).success).toBe(false);
   });
 });
 

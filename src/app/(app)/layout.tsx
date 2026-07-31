@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 
 const SPEECH_MATCH_PATHS = ['/tts', '/voices'];
 const IMAGE_MATCH_PATHS = ['/image'];
+const MUSIC_MATCH_PATHS = ['/music'];
 const LIBRARY_MATCH_PATHS = ['/library'];
 
 const SPEECH_LINKS = [
@@ -52,6 +53,14 @@ const PRODUCT_AREA_ACCENTS = {
     hoverBorder: '#bfdbfe',
     hoverBg: '#f8fbff',
     shadow: '0 8px 20px rgba(37, 99, 235, 0.08)',
+  },
+  music: {
+    activeBorder: '#f0abfc',
+    activeBg: '#fdf4ff',
+    activeColor: '#a21caf',
+    hoverBorder: '#f5d0fe',
+    hoverBg: '#fff7ff',
+    shadow: '0 8px 20px rgba(162, 28, 175, 0.08)',
   },
   library: {
     activeBorder: '#c4b5fd',
@@ -127,11 +136,13 @@ function SidebarLink({
   isActive: boolean;
   onNavigate?: () => void;
   size?: 'md' | 'sm';
-  accent?: 'speech' | 'image';
+  accent?: 'speech' | 'image' | 'music';
 }) {
   const colors = accent === 'image'
     ? { activeColor: '#1d4ed8', activeBg: '#dbeafe', hoverBg: '#eff6ff', focus: '#2563eb' }
-    : { activeColor: '#166534', activeBg: '#dcfce7', hoverBg: '#f0fdf4', focus: '#0f766e' };
+    : accent === 'music'
+      ? { activeColor: '#a21caf', activeBg: '#fae8ff', hoverBg: '#fdf4ff', focus: '#c026d3' }
+      : { activeColor: '#166534', activeBg: '#dcfce7', hoverBg: '#f0fdf4', focus: '#0f766e' };
 
   return (
     <Box
@@ -160,6 +171,7 @@ function AppSidebar({ onNavigate, variant = 'desktop' }: { onNavigate?: () => vo
   const pathname = usePathname();
   const isSpeechActive = matchesPath(pathname, SPEECH_MATCH_PATHS);
   const isImageActive = matchesPath(pathname, IMAGE_MATCH_PATHS);
+  const isMusicActive = matchesPath(pathname, MUSIC_MATCH_PATHS);
   const isLibraryActive = matchesPath(pathname, LIBRARY_MATCH_PATHS);
 
   const handleLogout = () => {
@@ -181,7 +193,7 @@ function AppSidebar({ onNavigate, variant = 'desktop' }: { onNavigate?: () => vo
       >
         <Link href="/tts" onClick={onNavigate}>
           <Box fontSize="1rem" fontWeight={800} color="#166534">MiniMax Studio</Box>
-          <Box mt="0.125rem" fontSize="0.75rem" color="#64748b">Speech and image generation</Box>
+          <Box mt="0.125rem" fontSize="0.75rem" color="#64748b">Speech, image, and music generation</Box>
         </Link>
       </Box>
 
@@ -243,7 +255,8 @@ function AppSidebar({ onNavigate, variant = 'desktop' }: { onNavigate?: () => vo
             })}
           </div>
         </div>
-        <ProductAreaLink href="/library" label="Library" description="Saved audio and image assets" isActive={isLibraryActive} accent="library" onNavigate={onNavigate} />
+        <ProductAreaLink href="/music" label="Music" description="Full track generation" isActive={isMusicActive} accent="music" onNavigate={onNavigate} />
+        <ProductAreaLink href="/library" label="Library" description="Saved audio, music, and image assets" isActive={isLibraryActive} accent="library" onNavigate={onNavigate} />
       </nav>
 
       <Box marginTop="auto">
@@ -274,7 +287,7 @@ function MobileHeader({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => v
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const isWideContent = matchesPath(pathname, IMAGE_MATCH_PATHS);
+  const isWideContent = matchesPath(pathname, IMAGE_MATCH_PATHS) || matchesPath(pathname, MUSIC_MATCH_PATHS);
 
   return (
     <AppKeyGate>

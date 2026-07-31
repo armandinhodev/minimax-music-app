@@ -1,11 +1,11 @@
 /**
  * history.ts — localStorage utilities for non-secret task metadata.
- * Stores metadata only: { id, type, source?, voiceId?, text?, fileId?, taskId?, audioUrl?, audioStorageKey?, imageUrls?, format?, aspectRatio?, seed?, model?, promptOptimizer?, createdAt, ttlExpiry? }
+ * Stores metadata only: { id, type, source?, voiceId?, text?, lyrics?, fileId?, taskId?, audioUrl?, audioStorageKey?, imageUrls?, format?, aspectRatio?, seed?, model?, promptOptimizer?, instrumental?, durationSeconds?, sampleRate?, bitrate?, createdAt, ttlExpiry? }
  * NEVER stores secrets (API keys, tokens, etc.)
  */
 
-export type HistoryType = 'tts' | 'clone' | 'design' | 'image';
-export type HistorySource = 'text-to-image' | 'image-to-image';
+export type HistoryType = 'tts' | 'clone' | 'design' | 'image' | 'music';
+export type HistorySource = 'text-to-image' | 'image-to-image' | 'text-to-music' | 'instrumental-music';
 
 export interface HistoryItem {
   id: string;
@@ -13,6 +13,7 @@ export interface HistoryItem {
   source?: HistorySource;
   voiceId?: string;
   text?: string;
+  lyrics?: string;
   fileId?: string;
   taskId?: string;
   audioUrl?: string;
@@ -23,6 +24,10 @@ export interface HistoryItem {
   seed?: number;
   model?: string;
   promptOptimizer?: boolean;
+  instrumental?: boolean;
+  durationSeconds?: number;
+  sampleRate?: number;
+  bitrate?: number;
   createdAt: number; // Unix timestamp ms
   ttlExpiry?: number; // Unix timestamp ms — for voices and download URLs
 }
@@ -75,6 +80,7 @@ export function saveHistoryItem(
   if (item.voiceId !== undefined) newItem.voiceId = item.voiceId;
   if (item.source !== undefined) newItem.source = item.source;
   if (item.text !== undefined) newItem.text = item.text;
+  if (item.lyrics !== undefined) newItem.lyrics = item.lyrics;
   if (item.fileId !== undefined) newItem.fileId = item.fileId;
   if (item.taskId !== undefined) newItem.taskId = item.taskId;
   if (item.audioUrl !== undefined) newItem.audioUrl = item.audioUrl;
@@ -85,6 +91,10 @@ export function saveHistoryItem(
   if (item.seed !== undefined) newItem.seed = item.seed;
   if (item.model !== undefined) newItem.model = item.model;
   if (item.promptOptimizer !== undefined) newItem.promptOptimizer = item.promptOptimizer;
+  if (item.instrumental !== undefined) newItem.instrumental = item.instrumental;
+  if (item.durationSeconds !== undefined) newItem.durationSeconds = item.durationSeconds;
+  if (item.sampleRate !== undefined) newItem.sampleRate = item.sampleRate;
+  if (item.bitrate !== undefined) newItem.bitrate = item.bitrate;
   if (item.ttlExpiry !== undefined) newItem.ttlExpiry = item.ttlExpiry;
 
   const items = getHistoryItems();

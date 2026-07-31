@@ -12,6 +12,10 @@ import {
   type GenerateImageRequest,
 } from '@/application/dto/ImageDTO';
 import {
+  GenerateMusicSchema,
+  type GenerateMusicRequest,
+} from '@/application/dto/MusicDTO';
+import {
   SynthesizeT2ASchema,
   StreamT2ASchema,
   SubmitAsyncT2ASchema,
@@ -35,6 +39,9 @@ export type AsyncT2ASubmit = SubmitAsyncT2ARequest;
 
 export const GenerateImageRequestSchema = GenerateImageSchema;
 export type GenerateImage = GenerateImageRequest;
+
+export const GenerateMusicRequestSchema = GenerateMusicSchema;
+export type GenerateMusic = GenerateMusicRequest;
 
 export const ListFilesRequestSchema = ListFilesSchema;
 export type ListFilesRequest = z.infer<typeof ListFilesSchema>;

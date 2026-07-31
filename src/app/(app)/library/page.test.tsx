@@ -237,6 +237,7 @@ describe('LibraryPage destructive confirmations', () => {
   it('filters items by type and shows storage status badges', () => {
     seedHistory([
       { id: 'history-1', type: 'tts', text: 'Hello world', voiceId: 'voice-a', audioStorageKey: 'audio-key-1', createdAt: 1 },
+      { id: 'history-music', type: 'music', source: 'text-to-music', text: 'Glossy synth-pop', lyrics: '[Chorus]\nRise again', audioStorageKey: 'music-key-1', format: 'mp3', model: 'music-3.0', durationSeconds: 118, sampleRate: 44100, bitrate: 256000, createdAt: 5 },
       { id: 'history-2', type: 'image', source: 'image-to-image', text: 'A premium studio product photo', imageUrls: ['https://example.com/image.png'], aspectRatio: '1:1', createdAt: 2, ttlExpiry: Date.now() + 24 * 60 * 60 * 1000 },
       { id: 'history-3', type: 'clone', voiceId: 'voice-clone', createdAt: 3 },
       { id: 'history-4', type: 'design', voiceId: 'voice-design', createdAt: 4 },
@@ -247,6 +248,9 @@ describe('LibraryPage destructive confirmations', () => {
     });
 
     expect(container!.textContent).toContain('Stored locally');
+    expect(container!.textContent).toContain('Mode: Text to Music');
+    expect(container!.textContent).toContain('Model: music-3.0');
+    expect(container!.textContent).toContain('Duration: 118s');
     expect(container!.textContent).toContain('24h image URLs');
     expect(container!.textContent).toContain('Source: Image to Image');
     expect(container!.textContent).toContain('Voice only');
@@ -257,6 +261,7 @@ describe('LibraryPage destructive confirmations', () => {
     });
 
     expect(container!.textContent).toContain('Hello world');
+    expect(container!.textContent).not.toContain('Glossy synth-pop');
     expect(container!.textContent).not.toContain('premium studio');
     expect(container!.textContent).not.toContain('voice-clone');
     expect(container!.textContent).not.toContain('voice-design');
@@ -296,6 +301,39 @@ describe('LibraryPage destructive confirmations', () => {
     expect(removeSpy).toHaveBeenCalled();
   });
 
+  it('downloads local music blobs by audioStorageKey and music filename', async () => {
+    const blob = new Blob(['music'], { type: 'audio/mpeg' });
+    audioStorageMocks.getStoredAudio.mockResolvedValue({
+      key: 'music-key-1',
+      blob,
+      format: 'mp3',
+      createdAt: 1,
+    });
+    seedHistory([
+      {
+        id: 'history-music',
+        type: 'music',
+        source: 'text-to-music',
+        text: 'Glossy synth-pop',
+        audioStorageKey: 'music-key-1',
+        format: 'mp3',
+        createdAt: 456,
+      },
+    ]);
+
+    act(() => {
+      root!.render(<LibraryPage />);
+    });
+
+    const downloadButton = Array.from(container!.querySelectorAll('button')).find((button) => button.textContent === 'Download');
+    await act(async () => {
+      downloadButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(audioStorageMocks.getStoredAudio).toHaveBeenCalledWith('music-key-1');
+    expect(audioStorageMocks.downloadBlob).toHaveBeenCalledWith(blob, 'music-456.mp3');
+  });
+
   it('marks TTS entries without a local blob or URL as missing audio', () => {
     seedHistory([
       { id: 'history-1', type: 'tts', text: 'Hello world', voiceId: 'voice-a', createdAt: 1 },
@@ -306,6 +344,20 @@ describe('LibraryPage destructive confirmations', () => {
     });
 
     expect(container!.textContent).toContain('Audio unavailable');
+    expect(container!.textContent).toContain('Missing audio');
+    expect(container!.textContent).toContain('No local audio blob or temporary URL is available');
+  });
+
+  it('marks music entries without a local blob as missing audio', () => {
+    seedHistory([
+      { id: 'history-music', type: 'music', text: 'Glossy synth-pop', createdAt: 1 },
+    ]);
+
+    act(() => {
+      root!.render(<LibraryPage />);
+    });
+
+    expect(container!.textContent).toContain('Music unavailable');
     expect(container!.textContent).toContain('Missing audio');
     expect(container!.textContent).toContain('No local audio blob or temporary URL is available');
   });

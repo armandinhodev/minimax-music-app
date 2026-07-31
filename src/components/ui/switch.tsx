@@ -1,10 +1,12 @@
 "use client";
 
-function Switch({ checked, onChange, className, disabled }: {
+function Switch({ checked, onChange, className, disabled, id, ariaLabel }: {
   checked?: boolean;
   onChange?: (checked: boolean) => void;
   className?: string;
   disabled?: boolean;
+  id?: string;
+  ariaLabel?: string;
 }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange?.(e.target.checked);
@@ -13,8 +15,10 @@ function Switch({ checked, onChange, className, disabled }: {
   return (
     <label style={{ position: "relative", display: "inline-flex", alignItems: "center", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }} className={className}>
       <input
+        id={id}
         type="checkbox"
         role="switch"
+        aria-label={ariaLabel}
         checked={checked}
         onChange={handleChange}
         disabled={disabled}

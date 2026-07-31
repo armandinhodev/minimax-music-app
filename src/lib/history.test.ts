@@ -117,11 +117,16 @@ describe('saveHistoryItem', () => {
       taskId: 'task_123',
       audioStorageKey: 'audio-key-1',
       imageUrls: ['https://example.com/image.png'],
+      lyrics: '[Verse] hello',
       format: 'mp3',
       aspectRatio: '1:1',
       seed: 42,
       model: 'image-01',
       promptOptimizer: true,
+      instrumental: false,
+      durationSeconds: 118,
+      sampleRate: 44100,
+      bitrate: 256000,
       ttlExpiry: Date.now() + 9 * 60 * 60 * 1000,
     });
 
@@ -130,11 +135,16 @@ describe('saveHistoryItem', () => {
     expect(item.taskId).toBe('task_123');
     expect(item.audioStorageKey).toBe('audio-key-1');
     expect(item.imageUrls).toEqual(['https://example.com/image.png']);
+    expect(item.lyrics).toBe('[Verse] hello');
     expect(item.format).toBe('mp3');
     expect(item.aspectRatio).toBe('1:1');
     expect(item.seed).toBe(42);
     expect(item.model).toBe('image-01');
     expect(item.promptOptimizer).toBe(true);
+    expect(item.instrumental).toBe(false);
+    expect(item.durationSeconds).toBe(118);
+    expect(item.sampleRate).toBe(44100);
+    expect(item.bitrate).toBe(256000);
     expect(item.ttlExpiry).toBeDefined();
   });
 
@@ -280,6 +290,7 @@ describe('non-secret storage contract', () => {
       imageUrls: ['https://example.com/image.png'],
       audio: '00010203',
       hex: '00010203',
+      rawAudio: '00010203',
     } as unknown as Parameters<typeof saveHistoryItem>[0]);
 
     const setCall = mockLocalStorage.setItem.mock.calls[0];
@@ -289,6 +300,7 @@ describe('non-secret storage contract', () => {
     expect(storedValue).toContain('https://example.com/image.png');
     expect(storedValue).not.toContain('"audio"');
     expect(storedValue).not.toContain('"hex"');
+    expect(storedValue).not.toContain('"rawAudio"');
     expect(storedValue).not.toContain('00010203');
   });
 });
@@ -391,5 +403,33 @@ describe('saveHistoryItem contract for production call sites', () => {
     expect(item.model).toBe('image-01');
     expect(item.promptOptimizer).toBe(true);
     expect(item.ttlExpiry).toBe(ttl);
+  });
+
+  it('accepts the music generation success shape without storing raw audio hex', () => {
+    const item = saveHistoryItem({
+      type: 'music',
+      source: 'text-to-music',
+      text: 'Glossy synth-pop with bright drums.',
+      lyrics: '[Chorus]\nRise again',
+      audioStorageKey: 'music-audio-key-1',
+      format: 'mp3',
+      model: 'music-3.0',
+      instrumental: false,
+      durationSeconds: 116,
+      sampleRate: 44100,
+      bitrate: 256000,
+      audio: '00010203',
+      hex: '00010203',
+    } as unknown as Parameters<typeof saveHistoryItem>[0]);
+
+    expect(item.type).toBe('music');
+    expect(item.source).toBe('text-to-music');
+    expect(item.audioStorageKey).toBe('music-audio-key-1');
+    expect(item.lyrics).toBe('[Chorus]\nRise again');
+    expect(item.durationSeconds).toBe(116);
+    const serialized = JSON.stringify(item);
+    expect(serialized).not.toContain('"audio"');
+    expect(serialized).not.toContain('"hex"');
+    expect(serialized).not.toContain('00010203');
   });
 });

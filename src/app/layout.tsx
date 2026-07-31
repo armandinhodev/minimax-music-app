@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "MiniMax Music App",
-  description: "MiniMax Speech module for music and audio synthesis",
+  description: "MiniMax studio for speech, image, music, and audio synthesis",
 };
 
 export default function RootLayout({

@@ -27,6 +27,7 @@ type LibraryFilter = 'all' | HistoryItem['type'];
 const FILTERS: Array<{ value: LibraryFilter; label: string }> = [
   { value: 'all', label: 'All' },
   { value: 'tts', label: 'Audio' },
+  { value: 'music', label: 'Music' },
   { value: 'image', label: 'Images' },
   { value: 'clone', label: 'Cloned voices' },
   { value: 'design', label: 'Designed voices' },
@@ -47,7 +48,7 @@ function getAudioFormat(item: HistoryItem, fallback?: string): string {
 }
 
 function getAudioFilename(item: HistoryItem, fallbackFormat?: string): string {
-  return `tts-${item.createdAt}.${getAudioFormat(item, fallbackFormat)}`;
+  return `${item.type === 'music' ? 'music' : 'tts'}-${item.createdAt}.${getAudioFormat(item, fallbackFormat)}`;
 }
 
 function getImageFilename(item: HistoryItem, index: number): string {
@@ -86,6 +87,7 @@ function getItemAccent(type: HistoryItem['type']): 'green' | 'purple' | 'teal' |
 
 function getItemBadgeVariant(type: HistoryItem['type']): 'success' | 'purple' | 'info' {
   if (type === 'image') return 'info';
+  if (type === 'music') return 'purple';
   if (type === 'clone') return 'purple';
   if (type === 'design') return 'info';
   return 'success';
@@ -93,6 +95,7 @@ function getItemBadgeVariant(type: HistoryItem['type']): 'success' | 'purple' | 
 
 function getItemTypeLabel(type: HistoryItem['type']): string {
   if (type === 'image') return 'Generated image';
+  if (type === 'music') return 'Generated music';
   if (type === 'clone') return 'Cloned voice';
   if (type === 'design') return 'Designed voice';
   return 'Generated audio';
@@ -101,6 +104,8 @@ function getItemTypeLabel(type: HistoryItem['type']): string {
 function getImageSourceLabel(source: HistoryItem['source']): string | null {
   if (source === 'image-to-image') return 'Image to Image';
   if (source === 'text-to-image') return 'Text to Image';
+  if (source === 'text-to-music') return 'Text to Music';
+  if (source === 'instrumental-music') return 'Instrumental Music';
   return null;
 }
 
@@ -110,6 +115,10 @@ function getStorageStatus(item: HistoryItem): { label: string; variant: 'success
     if (item.imageUrls?.length) return { label: '24h image URLs', variant: 'info' };
     return { label: 'Image unavailable', variant: 'warning' };
   }
+  if (item.type === 'music') {
+    if (item.audioStorageKey) return { label: 'Stored locally', variant: 'success' };
+    return { label: 'Music unavailable', variant: 'warning' };
+  }
   if (item.type !== 'tts') return { label: 'Voice only', variant: 'secondary' };
   if (item.audioStorageKey) return { label: 'Stored locally', variant: 'success' };
   if (item.audioUrl) return { label: 'Temporary URL', variant: 'info' };
@@ -118,7 +127,7 @@ function getStorageStatus(item: HistoryItem): { label: string; variant: 'success
 
 function LibraryItemCard({ item, onRefreshUrl, onDownload, onDelete, isRefreshing }: LibraryItemCardProps) {
   const canRefreshUrl = item.type !== 'clone' && Boolean(item.fileId);
-  const canDownload = item.type === 'tts' && Boolean(item.audioUrl || item.audioStorageKey);
+  const canDownload = (item.type === 'tts' || item.type === 'music') && Boolean(item.audioUrl || item.audioStorageKey);
   const imageUrls = item.type === 'image' ? item.imageUrls ?? [] : [];
   const storageStatus = getStorageStatus(item);
 
@@ -162,6 +171,16 @@ function LibraryItemCard({ item, onRefreshUrl, onDownload, onDelete, isRefreshin
             {item.promptOptimizer !== undefined && <span>Optimizer: {item.promptOptimizer ? 'On' : 'Off'}</span>}
           </Box>
         )}
+        {item.type === 'music' && (
+          <Box display="flex" gap={2} flexWrap="wrap" color="gray.600" fontSize="0.75rem">
+            {getImageSourceLabel(item.source) && <span>Mode: {getImageSourceLabel(item.source)}</span>}
+            {item.model && <span>Model: {item.model}</span>}
+            {item.format && <span>Format: {item.format.toUpperCase()}</span>}
+            {item.durationSeconds !== undefined && <span>Duration: {Math.round(item.durationSeconds)}s</span>}
+            {item.sampleRate !== undefined && <span>Sample rate: {item.sampleRate} Hz</span>}
+            {item.bitrate !== undefined && <span>Bitrate: {Math.round(item.bitrate / 1000)} kbps</span>}
+          </Box>
+        )}
         {imageUrls.length > 0 && (
           <Box display="grid" gap={3} gridTemplateColumns="repeat(auto-fit, minmax(8rem, 1fr))" mt={2}>
             {imageUrls.map((url, index) => (
@@ -190,7 +209,7 @@ function LibraryItemCard({ item, onRefreshUrl, onDownload, onDelete, isRefreshin
             No image URL is available for this entry. Generate it again to restore access.
           </p>
         )}
-        {item.type === 'tts' && !canDownload && (
+        {(item.type === 'tts' || item.type === 'music') && !canDownload && (
           <p style={{ fontSize: '0.75rem', color: '#9a3412' }}>
             No local audio blob or temporary URL is available for this entry. Generate it again to restore downloads.
           </p>
@@ -214,7 +233,7 @@ function LibraryItemCard({ item, onRefreshUrl, onDownload, onDelete, isRefreshin
               Download
             </Button>
           )}
-          {item.type === 'tts' && !canDownload && (
+          {(item.type === 'tts' || item.type === 'music') && !canDownload && (
             <Button variant="outline" colorPalette="orange" size="sm" disabled>
               Missing audio
             </Button>
@@ -345,7 +364,7 @@ export default function LibraryPage() {
         <Box>
           <h1 style={{ fontSize: '1.875rem', fontWeight: 700 }}>Library</h1>
           <Box color="gray.600" mt={1}>
-            Your generated audio, image, and voice history. Local audio stays in this browser; provider image URLs expire after 24 hours.
+            Your generated audio, music, image, and voice history. Local audio stays in this browser; provider image URLs expire after 24 hours.
           </Box>
         </Box>
         <Box display="flex" gap={2}>
@@ -399,7 +418,7 @@ export default function LibraryPage() {
             <CardHeader>
               <CardTitle>No history yet.</CardTitle>
               <CardDescription>
-                Generate your first audio clip or image to create a downloadable Library item.
+                Generate your first audio clip, track, or image to create a downloadable Library item.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -408,7 +427,7 @@ export default function LibraryPage() {
           <Card accent="gray" style={{ gridColumn: '1 / -1' }}>
             <CardHeader>
               <CardTitle>No items match this filter</CardTitle>
-            <CardDescription>Switch filters or generate new audio, images, and voices to add more Library items.</CardDescription>
+              <CardDescription>Switch filters or generate new audio, music, images, and voices to add more Library items.</CardDescription>
             </CardHeader>
           </Card>
         )}
