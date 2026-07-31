@@ -57,8 +57,8 @@ function downloadMusicHex(hex: string, format: string, id: string): void {
 }
 
 export default function MusicPage() {
-  const [prompt, setPrompt] = useState('');
-  const [lyrics, setLyrics] = useState('');
+  const [prompt, setPrompt] = useState(() => (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('prompt') ?? ''));
+  const [lyrics, setLyrics] = useState(() => (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('lyrics') ?? ''));
   const [instrumental, setInstrumental] = useState(false);
   const [model, setModel] = useState('music-3.0');
   const [isLoading, setIsLoading] = useState(false);

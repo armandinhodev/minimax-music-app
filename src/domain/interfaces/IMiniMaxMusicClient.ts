@@ -1,4 +1,11 @@
-import type { GenerateMusicRequest, GenerateMusicResponse } from '@/application/dto/MusicDTO';
+import type {
+  GenerateLyricsRequest,
+  GenerateLyricsResponse,
+  GenerateMusicRequest,
+  GenerateMusicResponse,
+  MusicCoverPreprocessRequest,
+  MusicCoverPreprocessResponse,
+} from '@/application/dto/MusicDTO';
 
 /**
  * Port interface for MiniMax music generation operations.
@@ -6,4 +13,6 @@ import type { GenerateMusicRequest, GenerateMusicResponse } from '@/application/
  */
 export interface IMiniMaxMusicClient {
   generateMusic(request: GenerateMusicRequest): Promise<GenerateMusicResponse>;
+  generateLyrics(request: GenerateLyricsRequest): Promise<GenerateLyricsResponse>;
+  preprocessMusicCover(request: MusicCoverPreprocessRequest): Promise<MusicCoverPreprocessResponse>;
 }

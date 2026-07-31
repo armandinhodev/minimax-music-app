@@ -16,7 +16,9 @@ import {
   GetFileSchema,
   DeleteFileSchema,
   GenerateImageRequestSchema,
+  GenerateLyricsRequestSchema,
   GenerateMusicRequestSchema,
+  MusicCoverPreprocessRequestSchema,
 } from '@/lib/validators';
 
 describe('T2ARequestSchema', () => {
@@ -254,6 +256,50 @@ describe('GenerateMusicRequestSchema', () => {
       lyrics: 'lyrics',
       audioSetting: { sampleRate: 48000, bitrate: 256000, format: 'mp3' },
     }).success).toBe(false);
+  });
+});
+
+describe('GenerateLyricsRequestSchema', () => {
+  it('accepts full-song lyrics requests with documented optional fields', () => {
+    const result = GenerateLyricsRequestSchema.safeParse({
+      mode: 'write_full_song',
+      prompt: 'Hopeful synth-pop about rebuilding trust.',
+      title: 'Neon Afterglow',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lyrics).toBe('');
+    }
+  });
+
+  it('accepts edit mode lyrics and rejects invalid modes or length limits', () => {
+    expect(GenerateLyricsRequestSchema.safeParse({
+      mode: 'edit',
+      lyrics: '[Verse]\nOld draft',
+      prompt: 'Make the chorus stronger.',
+    }).success).toBe(true);
+    expect(GenerateLyricsRequestSchema.safeParse({ mode: 'rewrite' }).success).toBe(false);
+    expect(GenerateLyricsRequestSchema.safeParse({ mode: 'write_full_song', prompt: 'a'.repeat(2001) }).success).toBe(false);
+    expect(GenerateLyricsRequestSchema.safeParse({ mode: 'edit', lyrics: 'a'.repeat(3501) }).success).toBe(false);
+  });
+});
+
+describe('MusicCoverPreprocessRequestSchema', () => {
+  const audioBase64 = Buffer.from('reference audio').toString('base64');
+
+  it('accepts exactly one reference audio source', () => {
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioUrl: 'https://example.com/reference.mp3' }).success).toBe(true);
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioBase64 }).success).toBe(true);
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioBase64: `data:audio/mpeg;base64,${audioBase64}` }).success).toBe(true);
+  });
+
+  it('rejects missing, duplicate, invalid, or oversized cover preprocess inputs', () => {
+    expect(MusicCoverPreprocessRequestSchema.safeParse({}).success).toBe(false);
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioUrl: 'https://example.com/reference.mp3', audioBase64 }).success).toBe(false);
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioUrl: 'ftp://example.com/reference.mp3' }).success).toBe(false);
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioBase64: 'not base64' }).success).toBe(false);
+    expect(MusicCoverPreprocessRequestSchema.safeParse({ audioBase64: 'a'.repeat(69_905_072) }).success).toBe(false);
   });
 });
 

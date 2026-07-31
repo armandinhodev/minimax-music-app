@@ -28,6 +28,12 @@ const IMAGE_LINKS = [
   { href: '/image/image-to-image', label: 'Image to Image' },
 ];
 
+const MUSIC_LINKS = [
+  { href: '/music', label: 'Music Generation' },
+  { href: '/music/lyrics', label: 'Lyrics Generation' },
+  { href: '/music/cover-preprocess', label: 'Cover Preprocess' },
+];
+
 const VOICE_ACTIONS = [
   { href: '/voices/clone', label: 'Clone Voice' },
   { href: '/voices/design', label: 'Design Voice' },
@@ -255,7 +261,26 @@ function AppSidebar({ onNavigate, variant = 'desktop' }: { onNavigate?: () => vo
             })}
           </div>
         </div>
-        <ProductAreaLink href="/music" label="Music" description="Full track generation" isActive={isMusicActive} accent="music" onNavigate={onNavigate} />
+        <div style={{ borderRadius: '0.875rem', border: `1px solid ${isMusicActive ? '#f0abfc' : '#e5e7eb'}`, backgroundColor: isMusicActive ? '#fdf4ff' : '#ffffff', boxShadow: isMusicActive ? '0 8px 20px rgba(162, 28, 175, 0.08)' : 'none', overflow: 'hidden' }}>
+          <ProductAreaLink href="/music" label="Music" description="Music creation suite" isActive={isMusicActive} accent="music" onNavigate={onNavigate} />
+
+          <div style={{ display: 'grid', gap: '0.25rem', borderTop: '1px solid #fae8ff', padding: '0.5rem' }}>
+            {MUSIC_LINKS.map((link) => {
+              const isActive = pathname === link.href;
+
+              return (
+                <SidebarLink
+                  key={link.href}
+                  href={link.href}
+                  label={link.label}
+                  isActive={isActive}
+                  onNavigate={onNavigate}
+                  accent="music"
+                />
+              );
+            })}
+          </div>
+        </div>
         <ProductAreaLink href="/library" label="Library" description="Saved audio, music, and image assets" isActive={isLibraryActive} accent="library" onNavigate={onNavigate} />
       </nav>
 

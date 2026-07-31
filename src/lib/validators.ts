@@ -12,8 +12,12 @@ import {
   type GenerateImageRequest,
 } from '@/application/dto/ImageDTO';
 import {
+  GenerateLyricsSchema,
   GenerateMusicSchema,
+  MusicCoverPreprocessSchema,
+  type GenerateLyricsRequest,
   type GenerateMusicRequest,
+  type MusicCoverPreprocessRequest,
 } from '@/application/dto/MusicDTO';
 import {
   SynthesizeT2ASchema,
@@ -42,6 +46,12 @@ export type GenerateImage = GenerateImageRequest;
 
 export const GenerateMusicRequestSchema = GenerateMusicSchema;
 export type GenerateMusic = GenerateMusicRequest;
+
+export const GenerateLyricsRequestSchema = GenerateLyricsSchema;
+export type GenerateLyrics = GenerateLyricsRequest;
+
+export const MusicCoverPreprocessRequestSchema = MusicCoverPreprocessSchema;
+export type MusicCoverPreprocess = MusicCoverPreprocessRequest;
 
 export const ListFilesRequestSchema = ListFilesSchema;
 export type ListFilesRequest = z.infer<typeof ListFilesSchema>;

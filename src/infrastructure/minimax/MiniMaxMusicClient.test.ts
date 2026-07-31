@@ -160,4 +160,152 @@ describe('MiniMaxMusicClient', () => {
       message: 'MiniMax returned no music audio',
     });
   });
+
+  it('sends lyrics_generation payload and maps the response', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      song_title: 'Neon Afterglow',
+      style_tags: ['synth-pop', 'uplifting'],
+      lyrics: '[Verse]\nCity lights\n[Chorus]\nRise again',
+      base_resp: { status_code: 0, status_msg: 'success' },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    const result = await new MiniMaxMusicClient().generateLyrics({
+      mode: 'write_full_song',
+      prompt: 'Hopeful synth-pop.',
+      lyrics: '',
+      title: 'Neon Afterglow',
+    });
+
+    expect(result).toEqual({
+      songTitle: 'Neon Afterglow',
+      styleTags: ['synth-pop', 'uplifting'],
+      lyrics: '[Verse]\nCity lights\n[Chorus]\nRise again',
+      metadata: { status: 0, message: 'success' },
+    });
+
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.minimax.io/v1/lyrics_generation');
+    expect(init.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer test-minimax-key',
+    });
+    expect(JSON.parse(String(init.body))).toEqual({
+      mode: 'write_full_song',
+      prompt: 'Hopeful synth-pop.',
+      title: 'Neon Afterglow',
+    });
+  });
+
+  it('sends music_cover_preprocess URL payload and maps the response', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      cover_feature_id: 'cover-feature-1',
+      formatted_lyrics: '[Verse]\nCity lights',
+      structure_result: '{"sections":["Verse"]}',
+      audio_duration: 42,
+      trace_id: 'trace-cover-1',
+      base_resp: { status_code: 0, status_msg: 'success' },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    const result = await new MiniMaxMusicClient().preprocessMusicCover({
+      model: 'music-cover',
+      audioUrl: 'https://example.com/reference.mp3',
+      audioBase64: '',
+    });
+
+    expect(result).toEqual({
+      coverFeatureId: 'cover-feature-1',
+      formattedLyrics: '[Verse]\nCity lights',
+      structureResult: '{"sections":["Verse"]}',
+      audioDurationSeconds: 42,
+      traceId: 'trace-cover-1',
+      metadata: { status: 0, message: 'success' },
+    });
+
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.minimax.io/v1/music_cover_preprocess');
+    expect(JSON.parse(String(init.body))).toEqual({
+      model: 'music-cover',
+      audio_url: 'https://example.com/reference.mp3',
+    });
+  });
+
+  it('strips data URL prefixes from cover preprocess base64 payloads', async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      cover_feature_id: 'cover-feature-base64',
+      audio_duration: 12,
+      base_resp: { status_code: 0 },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    await new MiniMaxMusicClient().preprocessMusicCover({
+      model: 'music-cover',
+      audioUrl: '',
+      audioBase64: 'data:audio/mpeg;base64,AAEC',
+    });
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      model: 'music-cover',
+      audio_base64: 'AAEC',
+    });
+  });
+
+  it('treats non-zero lyrics base_resp as an application error without retrying', async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        base_resp: { status_code: 429, status_msg: 'Slow down' },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        lyrics: '[Chorus]\nRise again',
+        base_resp: { status_code: 0 },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })) as typeof fetch;
+
+    await expect(new MiniMaxMusicClient().generateLyrics({
+      mode: 'write_full_song',
+      prompt: 'Hopeful synth-pop.',
+      lyrics: '',
+      title: '',
+    })).rejects.toMatchObject({ status: 429, code: 429 });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats non-zero cover preprocess base_resp as an application error without retrying', async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        base_resp: { status_code: 500, status_msg: 'Upstream busy' },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        cover_feature_id: 'cover-feature-1',
+        base_resp: { status_code: 0 },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })) as typeof fetch;
+
+    await expect(new MiniMaxMusicClient().preprocessMusicCover({
+      model: 'music-cover',
+      audioUrl: 'https://example.com/reference.mp3',
+      audioBase64: '',
+    })).rejects.toMatchObject({ status: 500, code: 500 });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
 });
