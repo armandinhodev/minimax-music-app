@@ -5,7 +5,7 @@
  */
 
 export type HistoryType = 'tts' | 'clone' | 'design' | 'image' | 'music';
-export type HistorySource = 'text-to-image' | 'image-to-image' | 'text-to-music' | 'instrumental-music';
+export type HistorySource = 'text-to-speech' | 'text-to-image' | 'image-to-image' | 'text-to-music' | 'instrumental-music';
 
 export interface HistoryItem {
   id: string;
@@ -30,6 +30,7 @@ export interface HistoryItem {
   bitrate?: number;
   createdAt: number; // Unix timestamp ms
   ttlExpiry?: number; // Unix timestamp ms — for voices and download URLs
+  serverSynced?: boolean; // true when the item came from the server-side SQLite metadata store
 }
 
 const STORAGE_KEY = 'minimax_speech_history';
@@ -96,6 +97,7 @@ export function saveHistoryItem(
   if (item.sampleRate !== undefined) newItem.sampleRate = item.sampleRate;
   if (item.bitrate !== undefined) newItem.bitrate = item.bitrate;
   if (item.ttlExpiry !== undefined) newItem.ttlExpiry = item.ttlExpiry;
+  if (item.serverSynced !== undefined) newItem.serverSynced = item.serverSynced;
 
   const items = getHistoryItems();
   items.unshift(newItem); // Most recent first

@@ -50,6 +50,10 @@ vite.config.ts.timestamp-*
 # pnpm
 .pnpm-store/
 
+# Local SQLite metadata stores
+/data/*.sqlite
+/data/*.sqlite-*
+
 # Top-level test fixtures (audio samples, etc.). Only the root /voices/
 # directory — src/app/(app)/voices/ is the Next.js route and must NOT
 # be ignored.

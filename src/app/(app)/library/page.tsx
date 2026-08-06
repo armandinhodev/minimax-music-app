@@ -14,13 +14,14 @@ import { Box } from '@chakra-ui/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { authFetch, parseApiError } from '@/lib/auth-client';
+import { authFetch, buildAuthHeader, parseApiError } from '@/lib/auth-client';
 import { ErrorDisplay } from '@/components/shared/ErrorDisplay';
 import { TTLCounter } from '@/components/shared/TTLCounter';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { getHistoryItems, removeHistoryItem, clearHistory, updateHistoryItemTtl } from '@/lib/history';
 import type { HistoryItem } from '@/lib/history';
 import { deleteStoredAudio, downloadBlob, getStoredAudio } from '@/lib/audio-storage';
+import type { LibraryGenerationDTO } from '@/application/dto/LibraryDTO';
 
 type LibraryFilter = 'all' | HistoryItem['type'];
 
@@ -49,6 +50,74 @@ function getAudioFormat(item: HistoryItem, fallback?: string): string {
 
 function getAudioFilename(item: HistoryItem, fallbackFormat?: string): string {
   return `${item.type === 'music' ? 'music' : 'tts'}-${item.createdAt}.${getAudioFormat(item, fallbackFormat)}`;
+}
+
+function getStringMetadata(metadata: Record<string, unknown>, key: string): string | undefined {
+  const value = metadata[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function getNumberMetadata(metadata: Record<string, unknown>, key: string): number | undefined {
+  const value = metadata[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function getBooleanMetadata(metadata: Record<string, unknown>, key: string): boolean | undefined {
+  const value = metadata[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function getServerGenerationId(item: HistoryItem): string | null {
+  return item.id.startsWith('server:') ? item.id.slice('server:'.length) : null;
+}
+
+function areLikelySameGeneration(localItem: HistoryItem, serverItem: HistoryItem): boolean {
+  const createdCloseEnough = Math.abs(localItem.createdAt - serverItem.createdAt) < 10_000;
+  return createdCloseEnough
+    && localItem.type === serverItem.type
+    && (localItem.text ?? null) === (serverItem.text ?? null)
+    && (localItem.model ?? null) === (serverItem.model ?? null);
+}
+
+function mergeLibraryItems(localItems: HistoryItem[], serverItems: HistoryItem[]): HistoryItem[] {
+  const merged = [...localItems];
+
+  for (const serverItem of serverItems) {
+    const alreadyRepresented = merged.some((item) => item.id === serverItem.id || areLikelySameGeneration(item, serverItem));
+    if (!alreadyRepresented) merged.push(serverItem);
+  }
+
+  return merged.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function mapServerGenerationToHistoryItem(generation: LibraryGenerationDTO): HistoryItem {
+  const audioAsset = generation.assets.find((asset) => asset.kind === 'audio');
+  const imageAssets = generation.assets.filter((asset) => asset.kind === 'image' && asset.storageType === 'provider_url' && asset.storageRef);
+  const imageUrls = imageAssets.map((asset) => asset.storageRef).filter((url): url is string => typeof url === 'string');
+  const expiresAt = imageAssets[0]?.expiresAt ?? audioAsset?.expiresAt ?? undefined;
+
+  return {
+    id: `server:${generation.id}`,
+    type: generation.kind,
+    source: generation.source ?? undefined,
+    text: generation.prompt ?? undefined,
+    lyrics: getStringMetadata(generation.metadata, 'lyrics'),
+    fileId: generation.providerFileId ?? undefined,
+    audioUrl: audioAsset?.storageType === 'provider_url' ? audioAsset.storageRef ?? undefined : undefined,
+    imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+    format: audioAsset?.format ?? undefined,
+    aspectRatio: getStringMetadata(generation.metadata, 'aspectRatio'),
+    seed: getNumberMetadata(generation.metadata, 'seed'),
+    model: generation.model ?? undefined,
+    promptOptimizer: getBooleanMetadata(generation.metadata, 'promptOptimizer'),
+    instrumental: getBooleanMetadata(generation.metadata, 'instrumental'),
+    durationSeconds: getNumberMetadata(generation.metadata, 'durationSeconds'),
+    sampleRate: getNumberMetadata(generation.metadata, 'sampleRate'),
+    bitrate: getNumberMetadata(generation.metadata, 'bitrate'),
+    createdAt: generation.createdAt,
+    ttlExpiry: expiresAt ?? undefined,
+    serverSynced: true,
+  };
 }
 
 function getImageFilename(item: HistoryItem, index: number): string {
@@ -114,6 +183,9 @@ function getStorageStatus(item: HistoryItem): { label: string; variant: 'success
     if (item.ttlExpiry && item.ttlExpiry <= Date.now()) return { label: 'URL may be expired', variant: 'warning' };
     if (item.imageUrls?.length) return { label: '24h image URLs', variant: 'info' };
     return { label: 'Image unavailable', variant: 'warning' };
+  }
+  if (item.serverSynced && !item.audioStorageKey && !item.audioUrl) {
+    return { label: 'Metadata only', variant: 'secondary' };
   }
   if (item.type === 'music') {
     if (item.audioStorageKey) return { label: 'Stored locally', variant: 'success' };
@@ -256,8 +328,27 @@ export default function LibraryPage() {
   const [filter, setFilter] = useState<LibraryFilter>('all');
   const [actionStatus, setActionStatus] = useState<string | null>(null);
 
+  const loadServerHistory = async (localItems: HistoryItem[]) => {
+    const authHeader = buildAuthHeader();
+    if (!authHeader) return;
+
+    try {
+      const response = await fetch('/api/library/generations?limit=50', {
+        headers: { Authorization: authHeader },
+      });
+      if (!response.ok) return;
+      const data = await response.json() as { generations?: LibraryGenerationDTO[] };
+      const serverItems = (data.generations ?? []).map(mapServerGenerationToHistoryItem);
+      setItems(mergeLibraryItems(localItems, serverItems));
+    } catch {
+      // Browser Library remains usable from local history if server metadata is unavailable.
+    }
+  };
+
   const loadHistory = () => {
-    setItems(getHistoryItems());
+    const localItems = getHistoryItems();
+    setItems(localItems);
+    void loadServerHistory(localItems);
   };
 
   useEffect(() => {
@@ -333,12 +424,28 @@ export default function LibraryPage() {
     }
   };
 
-  const handleConfirmDelete = () => {
+  const deleteServerGeneration = async (item: HistoryItem) => {
+    const generationId = getServerGenerationId(item);
+    const authHeader = buildAuthHeader();
+    if (!generationId || !authHeader) return;
+
+    await fetch(`/api/library/generations/${generationId}`, {
+      method: 'DELETE',
+      headers: { Authorization: authHeader },
+    });
+  };
+
+  const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) return;
+    const serverGenerationId = getServerGenerationId(pendingDeleteItem);
     if (pendingDeleteItem.audioStorageKey) {
       void deleteStoredAudio(pendingDeleteItem.audioStorageKey).catch(() => undefined);
     }
-    removeHistoryItem(pendingDeleteItem.id);
+    if (serverGenerationId) {
+      await deleteServerGeneration(pendingDeleteItem).catch(() => undefined);
+    } else {
+      removeHistoryItem(pendingDeleteItem.id);
+    }
     setItems((prev) => prev.filter((item) => item.id !== pendingDeleteItem.id));
     setActionStatus(`${getItemTypeLabel(pendingDeleteItem.type)} removed from Library.`);
     setPendingDeleteItem(null);
@@ -348,6 +455,9 @@ export default function LibraryPage() {
     items.forEach((item) => {
       if (item.audioStorageKey) {
         void deleteStoredAudio(item.audioStorageKey).catch(() => undefined);
+      }
+      if (getServerGenerationId(item)) {
+        void deleteServerGeneration(item).catch(() => undefined);
       }
     });
     clearHistory();

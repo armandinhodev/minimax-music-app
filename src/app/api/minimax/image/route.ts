@@ -13,6 +13,9 @@ import {
   createMiniMaxRouteErrorResponse,
   createValidationErrorResponse,
 } from '../_shared/route-error';
+import { recordGenerationBestEffort } from '../_shared/library-recording';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   const authError = requireAuth(request);
@@ -33,6 +36,29 @@ export async function POST(request: Request) {
   try {
     const useCase = new GenerateImageUseCase(new MiniMaxImageClient());
     const result = await useCase.execute(parsed.data);
+    recordGenerationBestEffort({
+      kind: 'image',
+      source: parsed.data.subjectReference?.length ? 'image-to-image' : 'text-to-image',
+      prompt: parsed.data.prompt,
+      model: 'image-01',
+      providerGenerationId: result.id,
+      metadata: {
+        aspectRatio: parsed.data.aspectRatio,
+        seed: parsed.data.seed,
+        promptOptimizer: parsed.data.promptOptimizer,
+        successCount: result.metadata.successCount,
+        failedCount: result.metadata.failedCount,
+      },
+      assets: result.imageUrls.map((url, index) => ({
+        kind: 'image',
+        storageType: 'provider_url',
+        storageRef: url,
+        format: 'png',
+        mimeType: 'image/png',
+        expiresAt: result.expiresAt,
+        metadata: { index },
+      })),
+    });
     return NextResponse.json(result);
   } catch (error) {
     return createMiniMaxRouteErrorResponse(error, {

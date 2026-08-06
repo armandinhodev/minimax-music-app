@@ -15,6 +15,9 @@ import {
   createMiniMaxRouteErrorResponse,
   createValidationErrorResponse,
 } from '../_shared/route-error';
+import { recordGenerationBestEffort } from '../_shared/library-recording';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   // Auth guard
@@ -40,10 +43,37 @@ export async function POST(request: Request) {
     const result = await useCase.execute(parsed.data);
 
     if (result.audioUrl) {
+      recordGenerationBestEffort({
+        kind: 'tts',
+        source: 'text-to-speech',
+        prompt: parsed.data.text,
+        model: parsed.data.model,
+        metadata: { voiceId: parsed.data.voiceId },
+        assets: [{
+          kind: 'audio',
+          storageType: 'provider_url',
+          storageRef: result.audioUrl,
+          format: parsed.data.format,
+          mimeType: `audio/${parsed.data.format}`,
+        }],
+      });
       return NextResponse.json({ audioUrl: result.audioUrl });
     }
 
     if (result.audio) {
+      recordGenerationBestEffort({
+        kind: 'tts',
+        source: 'text-to-speech',
+        prompt: parsed.data.text,
+        model: parsed.data.model,
+        metadata: { voiceId: parsed.data.voiceId },
+        assets: [{
+          kind: 'audio',
+          storageType: 'metadata_only',
+          format: parsed.data.format,
+          mimeType: `audio/${parsed.data.format}`,
+        }],
+      });
       return NextResponse.json({ audio: result.audio });
     }
 
